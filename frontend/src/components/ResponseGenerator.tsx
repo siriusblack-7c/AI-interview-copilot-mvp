@@ -53,12 +53,19 @@ export default function ResponseGenerator({
     };
     // Removed responseSource to simplify logic
 
-    const generateResponse = async (question: string): Promise<string> => {
-        console.log('🔧 generateResponse called with:', question);
-        console.log('🔧 OpenAI configured:', openaiConfigured, openaiService.isConfigured());
+    const streamCleanupRef = useRef<null | (() => void)>(null);
+    const responseTextRef = useRef('');
 
+    const generateResponse = async (incoming: string): Promise<string> => {
+        console.log('🔧 generateResponse (stream) called with:', incoming);
         setIsGenerating(true);
         setError(null);
+        setCurrentResponse('');
+        responseTextRef.current = '';
+
+        // cancel previous stream if any
+        try { streamCleanupRef.current?.(); } catch { }
+        streamCleanupRef.current = null;
 
         try {
             if (!openaiConfigured || !openaiService.isConfigured()) {
@@ -71,11 +78,35 @@ export default function ResponseGenerator({
                 additionalContext: additionalContext || undefined
             };
 
-            const response = await openaiService.generateInterviewResponse(question, context);
-            setCurrentResponse(response);
-            onResponseGenerated(response);
-            return response;
+            const donePromise = new Promise<string>((resolve) => {
+                openaiService
+                    .streamAnswer({
+                        question: incoming,
+                        context,
+                        onDelta: (delta) => {
+                            responseTextRef.current += delta;
+                            setCurrentResponse((prev) => prev + delta);
+                        },
+                        onDone: () => {
+                            resolve(responseTextRef.current);
+                        },
+                        onError: (msg) => {
+                            setError(msg);
+                            resolve('');
+                        },
+                    })
+                    .then((cleanup) => {
+                        streamCleanupRef.current = cleanup;
+                    })
+                    .catch((e) => {
+                        setError(e?.message || 'stream error');
+                        resolve('');
+                    });
+            });
 
+            const finalText = await donePromise;
+            onResponseGenerated(finalText);
+            return finalText;
         } catch (error: any) {
             setError(error.message);
             setCurrentResponse('');

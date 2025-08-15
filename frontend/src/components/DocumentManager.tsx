@@ -164,7 +164,7 @@ export default function DocumentManager({
                     <FileUpload
                         title="Resume"
                         description="Drop your resume here or click to upload"
-                        acceptedFileTypes={['.txt', '.doc', '.docx']}
+                        acceptedFileTypes={['.txt', '.doc', '.docx', '.pdf']}
                         onFileUpload={handleResumeUpload}
                         onClear={clearResume}
                         currentFile={resumeFile}
@@ -212,7 +212,7 @@ export default function DocumentManager({
                             <FileUpload
                                 title="Job Description"
                                 description="Drop job description file here or click to upload"
-                                acceptedFileTypes={['.txt', '.doc', '.docx']}
+                                acceptedFileTypes={['.txt', '.doc', '.docx', '.pdf']}
                                 onFileUpload={handleJobDescriptionUpload}
                                 onClear={clearJobDescription}
                                 currentFile={jobDescriptionFile}

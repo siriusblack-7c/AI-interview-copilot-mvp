@@ -13,6 +13,7 @@ import LiveTranscript from './LiveTranscript';
 import useDeepgramLive from '../hooks/useDeepgramLive';
 import useTranscriptBuffer from '../hooks/useTranscriptBuffer';
 import { isQuestion } from '../utils/questionDetection';
+import { getSocket } from '../services/backend';
 import createAudioAttribution from '../utils/audioAttribution';
 import ConversationHistory from './ConversationHistory';
 
@@ -34,8 +35,8 @@ export default function InterviewDashboard() {
     const { isListening, toggleListening, transcript, isMicActive } = useMicrophone({
         onQuestionDetected: (question: string) => {
             console.log('🎤 Question detected in useMicrophone:', question);
+            // Avoid duplicate history entries; rely on server detect:question
             setCurrentQuestion(question);
-            addQuestion(question);
         }
     });
 
@@ -43,8 +44,8 @@ export default function InterviewDashboard() {
     const { isSharing, startShare, stopShare, setListening: setSystemListening, stream: systemStream } = useSystemAudio({
         onQuestionDetected: (question: string) => {
             console.log('🖥️ Question detected from system audio:', question);
+            // Avoid duplicate history entries; rely on server detect:question
             setCurrentQuestion(question);
-            addQuestion(question);
         }
     });
 
@@ -108,16 +109,34 @@ export default function InterviewDashboard() {
             upsertTranscript({ speaker, text, isFinal });
             if (isFinal) {
                 lastThemFinalRef.current = { text: normalize(text), at: Date.now() };
-                if (isQuestion(text)) {
-                    setCurrentQuestion(text);
-                    addQuestion(text);
-                }
+                // Rely solely on server detection to avoid duplicates
             }
         },
     });
 
     // Use Web Speech API output for 'me' to avoid needing a second Deepgram session
     // Push microphone interim/final to live transcript for fast local display
+    const seenDetectIdsRef = useRef<Set<string>>(new Set());
+    useEffect(() => {
+        const socket = getSocket();
+        const onDetected = (payload: { id: string; question: string; source: string }) => {
+            try {
+                const id = String(payload?.id || '');
+                const q = String(payload?.question || '').trim();
+                if (!id || !q) return;
+                const seen = seenDetectIdsRef.current;
+                if (seen.has(id)) return;
+                seen.add(id);
+                setCurrentQuestion(q);
+                addQuestion(q);
+            } catch { }
+        };
+        socket.on('detect:question', onDetected);
+        return () => {
+            try { socket.off('detect:question', onDetected) } catch { }
+        };
+    }, [addQuestion]);
+
     useEffect(() => {
         // Poll for mic interim/final updates since __micLive is a global and doesn't trigger re-renders
         const timer = window.setInterval(() => {
@@ -140,10 +159,24 @@ export default function InterviewDashboard() {
                     if (isDuplicate) return;
                 }
                 upsertTranscript({ speaker, text: micLive.text, isFinal: micLive.isFinal });
+                if (micLive.isFinal) {
+                    try {
+                        const socket = getSocket();
+                        socket.emit('openai:detect:utterance', {
+                            utterance: micLive.text,
+                            source: 'speech',
+                            context: {
+                                resume: resumeText || undefined,
+                                jobDescription: jobDescription || undefined,
+                                additionalContext: additionalContext || undefined,
+                            },
+                        });
+                    } catch { }
+                }
             } catch { }
         }, 100);
         return () => { try { window.clearInterval(timer); } catch { } };
-    }, [isSharing, attribution, upsertTranscript]);
+    }, [isSharing, attribution, upsertTranscript, resumeText, jobDescription, additionalContext]);
 
     const handleResponseGenerated = useCallback((response: string) => {
         setCurrentResponse(response);
@@ -284,8 +317,19 @@ export default function InterviewDashboard() {
                             isMuted={isMuted}
                             // Manual typing integration
                             onManualQuestionSubmit={(q) => {
-                                setCurrentQuestion(q);
-                                addQuestion(q);
+                                // Route through backend detection; do not add to history here
+                                try {
+                                    const socket = getSocket();
+                                    socket.emit('openai:detect:utterance', {
+                                        utterance: q,
+                                        source: 'typed',
+                                        context: {
+                                            resume: resumeText || undefined,
+                                            jobDescription: jobDescription || undefined,
+                                            additionalContext: additionalContext || undefined,
+                                        },
+                                    });
+                                } catch { }
                             }}
                             isListening={isListening}
                             stopListening={() => {

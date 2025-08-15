@@ -1,6 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-// Whisper fallback removed; Deepgram is the primary path
-// import deepgramService from '../services/deepgram';
 
 interface UseSystemAudioOptions {
     onQuestionDetected: (question: string) => void;
@@ -11,7 +9,6 @@ export const useSystemAudio = ({ onQuestionDetected }: UseSystemAudioOptions) =>
     const [error, setError] = useState<string | null>(null);
     const streamRef = useRef<MediaStream | null>(null);
     const recorderRef = useRef<MediaRecorder | null>(null);
-    // removed fallback chunking
     const isListeningRef = useRef<boolean>(false);
 
     const startShare = useCallback(async () => {
@@ -66,7 +63,6 @@ export const useSystemAudio = ({ onQuestionDetected }: UseSystemAudioOptions) =>
             streamRef.current = stream;
             setIsSharing(true);
 
-            // Deepgram is used for live streaming; local fallback is removed
         } catch (err: any) {
             console.error('System audio share failed:', err);
             setError(err.message || 'Failed to share system audio');
@@ -110,7 +106,6 @@ export const useSystemAudio = ({ onQuestionDetected }: UseSystemAudioOptions) =>
         startShare,
         stopShare,
         setListening,
-        // expose stream for Deepgram
         stream: streamRef.current
     };
 };
