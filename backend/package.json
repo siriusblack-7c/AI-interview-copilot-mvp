@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "",
   "main": "dist/server.js",
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "scripts": {
     "clean": "rimraf dist",
     "build": "npm run clean && tsc -p tsconfig.json",
