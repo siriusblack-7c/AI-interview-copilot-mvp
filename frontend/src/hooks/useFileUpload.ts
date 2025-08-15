@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import mammoth from 'mammoth';
+import { api } from '../services/backend';
 
 interface UseFileUploadOptions {
     onSuccess: (text: string, file?: File) => void;
@@ -40,8 +41,12 @@ export const useFileUpload = ({ onSuccess, onError }: UseFileUploadOptions): Use
             }
         }
         else if (fileType === 'application/pdf' || fileName.endsWith('.pdf')) {
-            // Provide helpful guidance for PDF files
-            throw new Error('PDF text extraction is not available in this browser. Please copy and paste the text content from your PDF file manually. Supported file types: .txt, .doc, .docx');
+            const form = new FormData();
+            form.append('file', file);
+            const resp = await api.post('/api/files/extract-text', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+            const text = resp.data?.text || '';
+            if (!text) throw new Error('No text extracted from PDF');
+            return text;
         }
         else {
             throw new Error('Unsupported file type. Please use .txt, .doc, .docx files or copy and paste your resume text.');
