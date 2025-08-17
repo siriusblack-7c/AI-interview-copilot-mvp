@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { MessageCircle } from 'lucide-react'
 export type SpeakerId = 'me' | 'them'
 
@@ -15,8 +15,10 @@ interface LiveTranscriptProps {
     segments: TranscriptSegment[]
 }
 
-export default function LiveTranscript({ segments }: LiveTranscriptProps) {
+function LiveTranscript({ segments }: LiveTranscriptProps) {
     const scrollRef = useRef<HTMLDivElement>(null)
+    const workerRef = useRef<Worker | null>(null)
+    const [rowsFromWorker, setRowsFromWorker] = useState<{ key: string; speaker: SpeakerId; text: string; interim?: string }[] | null>(null)
 
     // Build display rows: all finalized utterances (merged by consecutive speaker), plus one latest interim
     const finalizedRows: { key: string; speaker: SpeakerId; text: string; interim?: string }[] = []
@@ -68,22 +70,33 @@ export default function LiveTranscript({ segments }: LiveTranscriptProps) {
     }, [finalizedRows.length, interimRow?.key, interimRow?.text])
 
     // Build final display rows, concatenating interim text into the latest row of the same speaker
-    const displayRows = (() => {
+    const displayRows = useMemo(() => {
+        if (rowsFromWorker) return rowsFromWorker
         const rows = finalizedRows.map((r) => ({ ...r }))
         if (interimRow) {
-            // find latest finalized row for same speaker
             let idx = -1
             for (let i = rows.length - 1; i >= 0; i--) {
                 if (rows[i].speaker === interimRow.speaker) { idx = i; break }
             }
-            if (idx >= 0) {
-                rows[idx].interim = interimRow.text
-            } else {
-                rows.push({ key: interimRow.key, speaker: interimRow.speaker, text: '', interim: interimRow.text })
-            }
+            if (idx >= 0) rows[idx].interim = interimRow.text
+            else rows.push({ key: interimRow.key, speaker: interimRow.speaker, text: '', interim: interimRow.text })
         }
         return rows
-    })()
+    }, [rowsFromWorker, finalizedRows.length, interimRow?.key, interimRow?.text])
+
+    useEffect(() => {
+        if (!workerRef.current) {
+            try {
+                workerRef.current = new Worker(new URL('../workers/transcriptWorker.ts', import.meta.url), { type: 'module' })
+                workerRef.current.onmessage = (e: MessageEvent) => {
+                    if (e.data?.type === 'rows') setRowsFromWorker(e.data.rows)
+                }
+            } catch {
+                // worker might fail in some dev servers; fall back to main-thread logic
+            }
+        }
+        try { workerRef.current?.postMessage({ type: 'build', segments }) } catch { }
+    }, [segments])
 
     return (
         <div className="bg-[#2c2c2c] rounded-md shadow-lg border border-gray-500 p-4 h-64 overflow-y-auto" ref={scrollRef}>
@@ -113,3 +126,5 @@ export default function LiveTranscript({ segments }: LiveTranscriptProps) {
         </div>
     )
 };
+
+export default React.memo(LiveTranscript)

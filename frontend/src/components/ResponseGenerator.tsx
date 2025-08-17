@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Brain, CheckCircle, AlertTriangle, Volume2, VolumeX, Send } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import openaiService from '../services/openai';
+import { useInterviewState } from '../context/InterviewStateContext';
 
 interface ResponseGeneratorProps {
     question: string;
@@ -13,10 +14,6 @@ interface ResponseGeneratorProps {
     isMuted?: boolean;
     // New props for manual typing + mic control
     onManualQuestionSubmit?: (question: string) => void;
-    isListening?: boolean;
-    stopListening?: () => void;
-    startListening?: () => void;
-    setSystemListening?: (listening: boolean) => void;
 }
 
 export default function ResponseGenerator({
@@ -26,16 +23,13 @@ export default function ResponseGenerator({
     resumeText = '',
     jobDescription = '',
     additionalContext = '',
-    onMuteToggle,
-    isMuted = false,
+    // props kept for compatibility; not used here
+    onMuteToggle: _onMuteToggle,
+    isMuted: _isMuted = false,
     onManualQuestionSubmit,
-    isListening = false,
-    stopListening,
-    startListening,
-    setSystemListening
 }: ResponseGeneratorProps) {
-    const [isGenerating, setIsGenerating] = useState(false);
-    const [currentResponse, setCurrentResponse] = useState('');
+    const { isListening, stopListening, startListening, setSystemListening, setIsGenerating } = useInterviewState();
+    // const [currentResponse, setCurrentResponse] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [typedQuestion, setTypedQuestion] = useState('');
     const pausedByTypingRef = useRef(false);
@@ -60,7 +54,7 @@ export default function ResponseGenerator({
         console.log('🔧 generateResponse (stream) called with:', incoming);
         setIsGenerating(true);
         setError(null);
-        setCurrentResponse('');
+        // setCurrentResponse('');
         responseTextRef.current = '';
 
         // cancel previous stream if any
@@ -85,7 +79,7 @@ export default function ResponseGenerator({
                         context,
                         onDelta: (delta) => {
                             responseTextRef.current += delta;
-                            setCurrentResponse((prev) => prev + delta);
+                            // setCurrentResponse((prev) => prev + delta);
                         },
                         onDone: () => {
                             resolve(responseTextRef.current);
@@ -109,7 +103,7 @@ export default function ResponseGenerator({
             return finalText;
         } catch (error: any) {
             setError(error.message);
-            setCurrentResponse('');
+            // setCurrentResponse('');
             onResponseGenerated('');
             return '';
         } finally {
@@ -157,77 +151,33 @@ export default function ResponseGenerator({
         setTypedQuestion('');
     };
 
-    const clearTypedQuestion = () => {
-        setTypedQuestion('');
-        setTimeout(() => {
-            detectedInputRef.current?.focus();
-            handleFocusInput();
-            autoResizeDetectedInput();
-            stopListening?.();
-            setSystemListening?.(false);
-        }, 0);
-    };
+    // keep for API parity; not used in this variant
+    // NOTE: Clear action is not exposed in this minimal UI
 
     return (
-        <div className="bg-[#2c2c2c] rounded-md shadow-lg border border-gray-500 p-6">
-            <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                    <Brain className="h-5 w-5 text-purple-600" />
-                    <h3 className="text-lg font-semibold text-gray-200">AI Response Generator</h3>
-                </div>
-                <div className="flex items-center text-xs rounded-full">
-                    {onMuteToggle && (
-                        <button
-                            onClick={() => onMuteToggle(!isMuted)}
-                            className={`p-1 rounded transition-colors flex items-center justify-center h-12 w-12 rounded-full text-white hover:scale-105 ${isMuted ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'}`}
-                            title={isMuted ? 'Unmute Speech' : 'Mute Speech'}
-                        >
-                            {isMuted ? (
-                                <VolumeX className="h-6 w-6" />
-                            ) : (
-                                <Volume2 className="h-6 w-6" />
-                            )}
-                        </button>
-                    )}
-                </div>
+        <div className="bg-[#2c2c2c] rounded-md">
+            <div className="rounded-lg">
+                <textarea
+                    value={typedQuestion}
+                    onChange={(e) => setTypedQuestion(e.target.value)}
+                    onFocus={handleFocusInput}
+                    onBlur={handleBlurInput}
+                    rows={3}
+                    ref={detectedInputRef}
+                    placeholder="Ready responses captures from AI"
+                    className="w-full text-sm resize-none px-3 py-3 bg-[#4a4a4a]  border border-gray-600 rounded-md text-gray-200 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-purple-600 focus:border-transparent"
+                />
             </div>
 
-            <div className="mb-4 p-4 bg-[#404040] rounded-lg border-l-4 border-blue-500">
-                <div className="flex items-center justify-between">
-                    <p className="text-sm text-blue-600 font-medium mb-2">Question Detected (edit or press Enter to send):</p>
-                    <div className="flex items-center gap-2">
-                        <button className="text-sm text-blue-600 font-medium mb-2" onClick={clearTypedQuestion}>
-                            Clear
-                        </button>
-                    </div>
-                </div>
-                <div className="flex items-end gap-2">
-                    <textarea
-                        value={typedQuestion}
-                        onChange={(e) => setTypedQuestion(e.target.value)}
-                        onFocus={handleFocusInput}
-                        onBlur={handleBlurInput}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !e.shiftKey) {
-                                e.preventDefault();
-                                submitTypedQuestion();
-                            }
-                        }}
-                        rows={1}
-                        ref={detectedInputRef}
-                        className="flex-1 w-full text-sm resize-none px-3 py-2 bg-[#2a2a2a] border border-gray-600 rounded-md text-gray-200 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent"
-                    />
-                    <button
-                        onClick={submitTypedQuestion}
-                        disabled={!typedQuestion.trim()}
-                        className="h-9 px-4 flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-md text-sm"
-                        title="Send"
-                    >
-                        <Send className="h-4 w-4" />
-                        Send
-                    </button>
-                </div>
-                <p className="mt-2 text-xs text-gray-500">Press Enter to send. Use Shift+Enter for a new line. Mic is paused while typing.</p>
+            <div className="mt-2 flex items-center justify-center">
+                <button
+                    onClick={submitTypedQuestion}
+                    disabled={!typedQuestion.trim()}
+                    className="px-8 py-3 rounded-md font-semibold text-white bg-gradient-to-r from-purple-500 to-fuchsia-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Generate"
+                >
+                    Generate
+                </button>
             </div>
 
             {error && (
@@ -240,7 +190,7 @@ export default function ResponseGenerator({
                     <p className="text-xs text-red-600 mt-1">Please check your OpenAI configuration and try again.</p>
                 </div>
             )}
-
+            {/* 
             {isGenerating ? (
                 <div className="flex items-center gap-3 p-4 bg-[#404040] rounded-lg">
                     <div className="flex space-x-1">
@@ -264,7 +214,7 @@ export default function ResponseGenerator({
                 </div>
             ) : (
                 <></>
-            )}
+            )} */}
 
         </div>
     );

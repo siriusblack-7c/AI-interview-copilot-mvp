@@ -1,53 +1,36 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
-import SpeechRecognition from './SpeechRecognition';
-import ResponseGenerator from './ResponseGenerator';
-import TextToSpeech from './TextToSpeech';
-import OpenAIConfig from './OpenAIConfig';
-import DocumentManager from './DocumentManager';
+import { useState, useCallback, useRef, useEffect, lazy, Suspense } from 'react';
+// const ResponseGenerator = lazy(() => import('./ResponseGenerator'));
+const TextToSpeech = lazy(() => import('./TextToSpeech'));
+const DocumentManager = lazy(() => import('./DocumentManager'));
 import Header from './Header';
 import { useConversation } from '../hooks/useConversation';
-import { useMicrophone } from '../hooks/useMicrophone';
-import { useSystemAudio } from '../hooks/useSystemAudio';
+import { useInterviewState } from '../context/InterviewStateContext';
 import type { TextToSpeechRef } from '../types/speech';
-import LiveTranscript from './LiveTranscript';
+const LiveTranscript = lazy(() => import('./LiveTranscript'));
 import useDeepgramLive from '../hooks/useDeepgramLive';
 import useTranscriptBuffer from '../hooks/useTranscriptBuffer';
 import { getSocket } from '../services/backend';
 import createAudioAttribution from '../utils/audioAttribution';
-import ConversationHistory from './ConversationHistory';
-import ScreenSharePreview from './ScreenSharePreview';
+// import ConversationHistory from './ConversationHistory';
+const ScreenSharePreview = lazy(() => import('./ScreenSharePreview'));
+const InterviewCopilotPanel = lazy(() => import('./InterviewCopilotPanel'));
+
 
 export default function InterviewDashboard() {
     const [currentQuestion, setCurrentQuestion] = useState('');
     const [currentResponse, setCurrentResponse] = useState('');
-    const [openaiConfigured, setOpenaiConfigured] = useState(false);
-    const [isResponsePlaying, setIsResponsePlaying] = useState(false);
+    // Removed OpenAI configuration panel/state
+    // Removed voice input panel; keep only muted state
     const [isMuted, setIsMuted] = useState(false);
     const [resumeText, setResumeText] = useState('');
     const [jobDescription, setJobDescription] = useState('');
     const [additionalContext, setAdditionalContext] = useState('');
 
     const textToSpeechRef = useRef<TextToSpeechRef>(null);
-    const shareVideoRef = useRef<HTMLVideoElement>(null);
 
     // Custom hooks
     const { addQuestion, addResponse, conversations, clearHistory } = useConversation();
-    const { isListening, toggleListening, transcript, isMicActive } = useMicrophone({
-        onQuestionDetected: (question: string) => {
-            console.log('🎤 Question detected in useMicrophone:', question);
-            // Avoid duplicate history entries; rely on server detect:question
-            setCurrentQuestion(question);
-        }
-    });
-
-    // System audio capture (tab/system) for 2-way audio
-    const { isSharing, startShare, stopShare, setListening: setSystemListening, stream: systemStream } = useSystemAudio({
-        onQuestionDetected: (question: string) => {
-            console.log('🖥️ Question detected from system audio:', question);
-            // Avoid duplicate history entries; rely on server detect:question
-            setCurrentQuestion(question);
-        }
-    });
+    const { isSharing, systemStream } = useInterviewState();
 
     // Decouple system-audio transcription from mic listening: system stays active while sharing
 
@@ -58,39 +41,13 @@ export default function InterviewDashboard() {
         }
     }, [isSharing]);
 
-    // Bind the screen share media stream to the preview video element
-    useEffect(() => {
-        const video = shareVideoRef.current;
-        if (!video) return;
-        if (systemStream) {
-            try {
-                (video as any).srcObject = systemStream;
-                const attemptPlay = () => {
-                    setTimeout(() => {
-                        video.play().catch(() => { /* ignore */ });
-                    }, 0);
-                };
-                if (video.readyState >= 2) attemptPlay();
-                else video.onloadedmetadata = attemptPlay;
-            } catch {
-                // no-op
-            }
-        } else {
-            try {
-                (video as any).srcObject = null;
-                video.pause();
-                video.removeAttribute('src');
-                video.load();
-            } catch {
-                // no-op
-            }
-        }
-    }, [systemStream]);
+    // ScreenSharePreview binds its own video element using context
 
     // Live transcript buffered (dedup interim vs final)
     const { segments, upsertTranscript } = useTranscriptBuffer();
     // Track last 'them' finalized text to suppress duplicate 'me' lines when sharing
     const lastThemFinalRef = useRef<{ text: string; at: number } | null>(null);
+    const lastResponseRef = useRef<string>('');
     const lastMicSnapshotRef = useRef<string | null>(null);
     const normalize = (s: string) => s.replace(/\s+/g, ' ').trim().toLowerCase();
     // Middleware for consistent speaker attribution
@@ -179,12 +136,15 @@ export default function InterviewDashboard() {
     }, [isSharing, attribution, upsertTranscript, resumeText, jobDescription, additionalContext]);
 
     const handleResponseGenerated = useCallback((response: string) => {
-        setCurrentResponse(response);
-        addResponse(response);
+        const trimmed = (response || '').trim();
+        setCurrentResponse(trimmed);
+        if (!trimmed) return;
+        if (lastResponseRef.current === trimmed) return;
+        lastResponseRef.current = trimmed;
+        addResponse(trimmed);
     }, [addResponse]);
 
-    const handleSpeechStateChange = useCallback((playing: boolean, muted: boolean) => {
-        setIsResponsePlaying(playing);
+    const handleSpeechStateChange = useCallback((_playing: boolean, muted: boolean) => {
         setIsMuted(muted);
     }, []);
 
@@ -196,9 +156,8 @@ export default function InterviewDashboard() {
         }
     }, []);
 
-    const handleStopResponse = useCallback(() => {
-        textToSpeechRef.current?.stop();
-    }, []);
+    // Voice input removed; retain stop control for TTS only
+    // no external usage
 
     const handleResumeUpdate = useCallback((text: string) => {
         setResumeText(text);
@@ -223,83 +182,68 @@ export default function InterviewDashboard() {
                     {/* Left Column */}
                     <div className="space-y-6">
                         {/* Screen Share Preview (shown on top of voice input box while sharing) */}
-                        <ScreenSharePreview
-                            systemStream={systemStream}
-                            isSharing={isSharing}
-                            onStartShare={startShare}
-                            onStopShare={stopShare}
-                        />
+                        <Suspense fallback={<div className="h-64 bg-[#2a2a2a] rounded-md animate-pulse" />}>
+                            <ScreenSharePreview />
+                        </Suspense>
 
-                        {/* Speech Recognition */}
-                        <SpeechRecognition
-                            isListening={isListening}
-                            onToggleListening={toggleListening}
-                            onStopResponse={handleStopResponse}
-                            isResponsePlaying={isResponsePlaying}
-                            transcript={transcript}
-                            isMicActive={isMicActive}
-                        />
+                        {/* Voice input panel removed */}
                         {/* Live Transcript */}
-                        <LiveTranscript segments={segments} />
+                        <Suspense fallback={<div className="h-64 bg-[#2a2a2a] rounded-md animate-pulse" />}>
+                            <LiveTranscript segments={segments} />
+                        </Suspense>
                         {/* Hidden Text-to-Speech for automatic playback */}
-                        <TextToSpeech
-                            ref={textToSpeechRef}
-                            text={currentResponse}
-                            autoPlay={true}
-                            onStateChange={handleSpeechStateChange}
-                        />
+                        <Suspense fallback={null}>
+                            <TextToSpeech
+                                ref={textToSpeechRef}
+                                text={currentResponse}
+                                autoPlay={true}
+                                onStateChange={handleSpeechStateChange}
+                            />
+                        </Suspense>
                         {/* Document Manager */}
-                        <DocumentManager
-                            onResumeUpdate={handleResumeUpdate}
-                            onJobDescriptionUpdate={handleJobDescriptionUpdate}
-                            onAdditionalContextUpdate={handleAdditionalContextUpdate}
-                            resumeText={resumeText}
-                            jobDescription={jobDescription}
-                            additionalContext={additionalContext}
-                        />
+                        <Suspense fallback={<div className="h-40 bg-[#2a2a2a] rounded-md animate-pulse" />}>
+                            <DocumentManager
+                                onResumeUpdate={handleResumeUpdate}
+                                onJobDescriptionUpdate={handleJobDescriptionUpdate}
+                                onAdditionalContextUpdate={handleAdditionalContextUpdate}
+                                resumeText={resumeText}
+                                jobDescription={jobDescription}
+                                additionalContext={additionalContext}
+                            />
+                        </Suspense>
                     </div>
                     {/* Right Column */}
                     <div className="space-y-6">
-                        {/* Response Generator */}
-                        <ResponseGenerator
-                            question={currentQuestion}
-                            onResponseGenerated={handleResponseGenerated}
-                            openaiConfigured={openaiConfigured}
-                            resumeText={resumeText}
-                            jobDescription={jobDescription}
-                            additionalContext={additionalContext}
-                            onMuteToggle={handleMuteToggle}
-                            isMuted={isMuted}
-                            // Manual typing integration
-                            onManualQuestionSubmit={(q) => {
-                                // Route through backend detection; do not add to history here
-                                try {
-                                    const socket = getSocket();
-                                    socket.emit('openai:detect:utterance', {
-                                        utterance: q,
-                                        source: 'typed',
-                                        context: {
-                                            resume: resumeText || undefined,
-                                            jobDescription: jobDescription || undefined,
-                                            additionalContext: additionalContext || undefined,
-                                        },
-                                    });
-                                } catch { }
-                            }}
-                            isListening={isListening}
-                            stopListening={() => {
-                                // stop mic and system audio listening
-                                if (isListening) toggleListening();
-                            }}
-                            startListening={() => {
-                                if (!isListening) toggleListening();
-                            }}
-                            setSystemListening={setSystemListening}
-                        />
-                        {/* Conversation History */}
-                        <ConversationHistory conversations={conversations} onClearHistory={clearHistory} />
-                        {/* OpenAI Configuration */}
-                        <OpenAIConfig onConfigChange={setOpenaiConfigured} />
+                        {/* Response Generator removed here to avoid duplicate; now rendered within InterviewCopilotPanel */}
+                        {/* Copilot Panel: Conversation + Response Generator */}
+                        <Suspense fallback={<div className="min-h-[420px] bg-[#2a2a2a] rounded-md animate-pulse" />}>
+                            <InterviewCopilotPanel
+                                conversations={conversations}
+                                onClearHistory={clearHistory}
+                                question={currentQuestion}
+                                onResponseGenerated={handleResponseGenerated}
+                                resumeText={resumeText}
+                                jobDescription={jobDescription}
+                                additionalContext={additionalContext}
+                                onMuteToggle={handleMuteToggle}
+                                isMuted={isMuted}
+                                onManualQuestionSubmit={(q) => {
+                                    try {
+                                        const socket = getSocket();
+                                        socket.emit('openai:detect:utterance', {
+                                            utterance: q,
+                                            source: 'typed',
+                                            context: {
+                                                resume: resumeText || undefined,
+                                                jobDescription: jobDescription || undefined,
+                                                additionalContext: additionalContext || undefined,
+                                            },
+                                        });
+                                    } catch { }
+                                }}
+                            />
+                        </Suspense>
+                        {/* OpenAI Configuration removed */}
                     </div>
                 </div>
             </div>

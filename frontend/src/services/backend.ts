@@ -9,11 +9,20 @@ export const api = axios.create({
 })
 
 let socket: Socket | null = null
+let debugBound = false
 
 export function getSocket(): Socket {
     if (socket && socket.connected) return socket
     if (!socket) {
         socket = io(API_BASE_URL, { withCredentials: true, autoConnect: true })
+        if (!debugBound) {
+            debugBound = true
+            try {
+                socket.on('connect', () => console.log('[socket] connected', socket?.id))
+                socket.on('disconnect', (reason) => console.log('[socket] disconnected', reason))
+                socket.on('connect_error', (err) => console.log('[socket] connect_error', err?.message || err))
+            } catch { }
+        }
     } else if (!socket.connected) {
         try { socket.connect() } catch { }
     }

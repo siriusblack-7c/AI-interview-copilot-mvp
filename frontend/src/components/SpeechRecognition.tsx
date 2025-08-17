@@ -1,28 +1,21 @@
 import { useState, useEffect } from 'react';
 import { Mic, MicOff, Square } from 'lucide-react';
+import { useInterviewState } from '../context/InterviewStateContext';
 
 interface SpeechRecognitionProps {
     onQuestionDetected?: (question: string) => void;
-    isListening: boolean;
-    onToggleListening: () => void;
     onStopResponse?: () => void;
     isResponsePlaying?: boolean;
-    transcript?: string;
-    isMicActive?: boolean;
 }
 
 export default function SpeechRecognition({
-    isListening,
-    onToggleListening,
     onStopResponse,
     isResponsePlaying = false,
-    transcript: externalTranscript,
-    isMicActive = false,
 }: SpeechRecognitionProps) {
     const [isSupported, setIsSupported] = useState(false);
+    const { isListening, toggleListening, isMicActive, transcript } = useInterviewState();
 
-    // Use external transcript if provided
-    const displayTranscript = externalTranscript || '';
+    const displayTranscript = transcript || '';
 
     useEffect(() => {
         // Check if speech recognition is supported
@@ -65,7 +58,7 @@ export default function SpeechRecognition({
 
                     {/* Microphone Button */}
                     <button
-                        onClick={onToggleListening}
+                        onClick={toggleListening}
                         className={`p-3 rounded-full transition-all duration-200 transform hover:scale-105 ${isListening
                             ? 'bg-blue-500 hover:bg-blue-600 text-white shadow-lg shadow-blue-500/25'
                             : 'bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/25'

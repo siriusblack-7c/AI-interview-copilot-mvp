@@ -25,10 +25,8 @@ class DeepgramService {
     ): () => void {
         const socket = getSocket()
 
-        // Log socket connection events for debugging
+        // Socket debug logs centralized in backend.ts singleton
         try {
-            socket.on('connect', () => console.log('[deepgram] socket connected', socket.id))
-            socket.on('disconnect', (reason) => console.log('[deepgram] socket disconnected', reason))
             socket.on('deepgram:open', () => console.log('[deepgram] session open'))
             socket.on('deepgram:closed', () => console.log('[deepgram] session closed'))
         } catch { }

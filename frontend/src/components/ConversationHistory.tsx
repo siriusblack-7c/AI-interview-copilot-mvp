@@ -1,5 +1,5 @@
 import { MessageCircle, Clock, HelpCircle, Bot } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 
 interface ConversationItem {
     id: string;
@@ -14,7 +14,7 @@ interface ConversationHistoryProps {
     onClearHistory: () => void;
 }
 
-export default function ConversationHistory({ conversations, onClearHistory }: ConversationHistoryProps) {
+function ConversationHistory({ conversations, onClearHistory }: ConversationHistoryProps) {
     const scrollContainerRef = useRef<HTMLDivElement>(null);
 
     const formatTime = (date: Date) => {
@@ -33,6 +33,37 @@ export default function ConversationHistory({ conversations, onClearHistory }: C
     }, [conversations]);
 
     const visibleItems = conversations;
+
+    const items = useMemo(() => {
+        return visibleItems.map((item) => (
+            <div
+                key={item.id}
+                className={`flex gap-3 p-3 rounded-lg transition-all hover:shadow-sm bg-[#404040] border-l-4 ${item.type === 'question' ? 'border-blue-500' : item.type === 'response' ? 'border-purple-500' : 'border-yellow-500'}`}
+            >
+                <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${item.type === 'question' ? 'bg-blue-500' : item.type === 'response' ? 'bg-purple-500' : 'bg-yellow-500'} text-white`}>
+                    {item.type === 'question' ? <HelpCircle className="h-4 w-4" /> : item.type === 'response' ? <Bot className="h-4 w-4" /> : <MessageCircle className="h-4 w-4" />}
+                </div>
+
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                        <span className={`text-sm font-medium ${item.type === 'question' ? 'text-blue-400' : item.type === 'response' ? 'text-purple-400' : 'text-yellow-600'}`}>
+                            {item.type === 'question' ? 'Question' : item.type === 'response' ? 'GPT Response' : 'Live Transcript'}
+                        </span>
+                        <div className="flex items-center gap-1 text-xs text-gray-400">
+                            <Clock className="h-3 w-3" />
+                            <span>{formatTime(item.timestamp)}</span>
+                        </div>
+                    </div>
+                    <p className="text-sm text-gray-200 leading-relaxed break-words">
+                        {item.content}
+                        {item.type === 'transcript' && !item.isFinalTranscript && (
+                            <span className="ml-2 text-xs text-yellow-500">(listening...)</span>
+                        )}
+                    </p>
+                </div>
+            </div>
+        ));
+    }, [visibleItems]);
 
     return (
         <div className="bg-[#2c2c2c] rounded-md shadow-lg border border-gray-500 p-6 h-[400px] flex flex-col">
@@ -62,38 +93,11 @@ export default function ConversationHistory({ conversations, onClearHistory }: C
                         <p className="text-sm text-center">Start speaking to see conversation history.</p>
                     </div>
                 ) : (
-                    visibleItems.map((item) => (
-                        <div
-                            key={item.id}
-                            className={`flex gap-3 p-3 rounded-lg transition-all hover:shadow-sm bg-[#404040] border-l-4 ${item.type === 'question' ? 'border-blue-500' : item.type === 'response' ? 'border-purple-500' : 'border-yellow-500'
-                                }`}
-                        >
-                            <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${item.type === 'question' ? 'bg-blue-500' : item.type === 'response' ? 'bg-purple-500' : 'bg-yellow-500'
-                                } text-white`}>
-                                {item.type === 'question' ? <HelpCircle className="h-4 w-4" /> : item.type === 'response' ? <Bot className="h-4 w-4" /> : <MessageCircle className="h-4 w-4" />}
-                            </div>
-
-                            <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <span className={`text-sm font-medium ${item.type === 'question' ? 'text-blue-400' : item.type === 'response' ? 'text-purple-400' : 'text-yellow-600'}`}>
-                                        {item.type === 'question' ? 'Question' : item.type === 'response' ? 'GPT Response' : 'Live Transcript'}
-                                    </span>
-                                    <div className="flex items-center gap-1 text-xs text-gray-400">
-                                        <Clock className="h-3 w-3" />
-                                        <span>{formatTime(item.timestamp)}</span>
-                                    </div>
-                                </div>
-                                <p className="text-sm text-gray-200 leading-relaxed break-words">
-                                    {item.content}
-                                    {item.type === 'transcript' && !item.isFinalTranscript && (
-                                        <span className="ml-2 text-xs text-yellow-500">(listening...)</span>
-                                    )}
-                                </p>
-                            </div>
-                        </div>
-                    ))
+                    items
                 )}
             </div>
         </div>
     );
 }
+
+export default React.memo(ConversationHistory);
