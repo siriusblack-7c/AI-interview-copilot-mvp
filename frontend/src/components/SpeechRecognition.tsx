@@ -1,12 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Mic, MicOff, Square, ScreenShare } from 'lucide-react';
+import { Mic, MicOff, Square } from 'lucide-react';
 
 interface SpeechRecognitionProps {
     onQuestionDetected?: (question: string) => void;
     isListening: boolean;
     onToggleListening: () => void;
-    onToggleShare?: () => void;
-    isSharing?: boolean;
     onStopResponse?: () => void;
     isResponsePlaying?: boolean;
     transcript?: string;
@@ -16,12 +14,10 @@ interface SpeechRecognitionProps {
 export default function SpeechRecognition({
     isListening,
     onToggleListening,
-    onToggleShare,
     onStopResponse,
     isResponsePlaying = false,
     transcript: externalTranscript,
     isMicActive = false,
-    isSharing = false,
 }: SpeechRecognitionProps) {
     const [isSupported, setIsSupported] = useState(false);
 
@@ -56,16 +52,6 @@ export default function SpeechRecognition({
                     Voice Input
                 </h3>
                 <div className="flex items-center gap-2">
-                    {/* Share System Audio Button */}
-                    {onToggleShare && (
-                        <button
-                            onClick={onToggleShare}
-                            className={`p-2 rounded-lg ${isSharing ? 'bg-indigo-500 text-white' : 'bg-gray-700 text-gray-200'} hover:opacity-90 transition`}
-                            title={isSharing ? 'Stop Sharing System Audio' : 'Share System/Tab Audio'}
-                        >
-                            <ScreenShare className="h-4 w-4" />
-                        </button>
-                    )}
                     {/* Response Control Buttons */}
                     {isResponsePlaying && onStopResponse && (
                         <button

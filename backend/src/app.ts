@@ -4,7 +4,6 @@ import helmet from 'helmet'
 import compression from 'compression'
 import pinoHttp from 'pino-http'
 import morgan from 'morgan'
-import { env } from './config/env'
 import { rateLimiter } from './middlewares/rateLimit'
 import { errorHandler } from './middlewares/error'
 import { logger } from './utils/logger'
@@ -23,11 +22,21 @@ export function createApp() {
                 // Allow requests with no origin (like mobile apps or curl requests)
                 if (!origin) return callback(null, true)
 
-                // Allow all origins when credentials are not required
-                // For credentials mode, we need to return the specific origin
-                callback(null, origin)
+                // Allow specific origins for credentials mode
+                const allowedOrigins = [
+                    'http://localhost:5173', // Vite dev server
+                    'http://localhost:3000', // Local backend
+                    'https://ai-interview-copilot-mvp.onrender.com', // Production backend
+                    // Add your frontend domain when you deploy it
+                ]
+
+                if (allowedOrigins.includes(origin)) {
+                    callback(null, origin)
+                } else {
+                    callback(null, false)
+                }
             },
-            // credentials option removed: cross-origin requests will not include credentials (cookies, authorization headers, etc.)
+            credentials: true
         })
     )
     app.use(helmet())

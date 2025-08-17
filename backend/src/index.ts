@@ -14,12 +14,24 @@ const server = http.createServer(app)
 const io = new IOServer(server, {
     cors: {
         origin: (origin, callback) => {
-            // Allow requests with no origin
+            // Allow requests with no origin (like mobile apps or curl requests)
             if (!origin) return callback(null, true)
 
-            // Allow all origins by returning the specific origin
-            callback(null, origin)
+            // Allow specific origins for credentials mode
+            const allowedOrigins = [
+                'http://localhost:5173', // Vite dev server
+                'http://localhost:3000', // Local backend
+                'https://ai-interview-copilot-mvp.onrender.com', // Production backend
+                // Add your frontend domain when you deploy it
+            ]
+
+            if (allowedOrigins.includes(origin)) {
+                callback(null, origin)
+            } else {
+                callback(null, false)
+            }
         },
+        credentials: true
     },
 })
 

@@ -9,6 +9,8 @@ type DeepgramSession = {
     live: LiveClient
     isOpen: boolean
     keepAliveTimer?: NodeJS.Timeout
+    heartbeatTimer?: NodeJS.Timeout
+    lastActivity: number
     reconnectAttempts: number
 }
 
@@ -72,6 +74,7 @@ function createDeepgramSession(socket: Socket, sessions: Map<string, DeepgramSes
         const session: DeepgramSession = {
             live,
             isOpen: false,
+            lastActivity: Date.now(),
             reconnectAttempts: 0
         }
 
@@ -84,19 +87,56 @@ function createDeepgramSession(socket: Socket, sessions: Map<string, DeepgramSes
                         // Send empty audio chunk to keep session alive
                         const emptyBuffer = new ArrayBuffer(0)
                         session.live.send(emptyBuffer)
+                        logger.debug({ socketId: socket.id }, 'Keep-alive sent to Deepgram')
                     } catch (err) {
                         logger.debug({ err }, 'Keep-alive send failed')
+                        // If keep-alive fails, try to restart the session
+                        if (session.isOpen) {
+                            logger.info({ socketId: socket.id }, 'Keep-alive failed, attempting session restart')
+                            try {
+                                session.live.finish?.()
+                                session.isOpen = false
+                                // The close event will trigger reconnection
+                            } catch (restartErr) {
+                                logger.error({ restartErr }, 'Failed to restart Deepgram session')
+                            }
+                        }
                     }
                 }
-            }, 3000) // Every 3 seconds (more frequent)
+            }, 2000) // Every 2 seconds (more frequent to prevent timeouts)
+        }
+
+        // Start heartbeat monitoring to detect stale sessions
+        const startHeartbeat = () => {
+            if (session.heartbeatTimer) clearInterval(session.heartbeatTimer)
+            session.heartbeatTimer = setInterval(() => {
+                if (session.isOpen) {
+                    const now = Date.now()
+                    const timeSinceLastActivity = now - session.lastActivity
+
+                    // If no activity for 30 seconds, consider session stale
+                    if (timeSinceLastActivity > 30000) {
+                        logger.warn({ socketId: socket.id, timeSinceLastActivity }, 'Deepgram session appears stale, restarting')
+                        try {
+                            session.live.finish?.()
+                            session.isOpen = false
+                            // The close event will trigger reconnection
+                        } catch (heartbeatErr) {
+                            logger.error({ heartbeatErr }, 'Failed to restart stale Deepgram session')
+                        }
+                    }
+                }
+            }, 10000) // Check every 10 seconds
         }
 
         live.on(LiveTranscriptionEvents.Open, () => {
             session.isOpen = true
             session.reconnectAttempts = 0 // Reset reconnect attempts on successful open
+            session.lastActivity = Date.now()
             logger.info({ socketId: socket.id }, 'Deepgram session opened')
             socket.emit('deepgram:open')
             startKeepAlive()
+            startHeartbeat()
         })
 
         live.on(LiveTranscriptionEvents.Transcript, async (evt: any) => {
@@ -129,11 +169,24 @@ function createDeepgramSession(socket: Socket, sessions: Map<string, DeepgramSes
         live.on(LiveTranscriptionEvents.Error, (err: any) => {
             logger.error({ err, socketId: socket.id }, 'Deepgram error')
             socket.emit('deepgram:error', { message: err?.message || 'Deepgram error' })
+
+            // Try to recover from errors by restarting the session
+            if (session.isOpen && session.reconnectAttempts < 3) {
+                logger.info({ socketId: socket.id }, 'Attempting to recover from Deepgram error')
+                try {
+                    session.live.finish?.()
+                    session.isOpen = false
+                    // The close event will trigger reconnection
+                } catch (recoverErr) {
+                    logger.error({ recoverErr }, 'Failed to recover Deepgram session')
+                }
+            }
         })
 
         live.on(LiveTranscriptionEvents.Close, () => {
             logger.info({ socketId: socket.id }, 'Deepgram session closed')
             if (session.keepAliveTimer) clearInterval(session.keepAliveTimer)
+            if (session.heartbeatTimer) clearInterval(session.heartbeatTimer)
 
             // Don't remove session immediately - try to reconnect
             session.isOpen = false
@@ -250,6 +303,9 @@ export function registerDeepgramSocket(io: Server) {
                 const ab = coerceToArrayBuffer(chunk)
                 if (ab && ab.byteLength > 0) {
                     session.live.send(ab)
+                    // Update last activity timestamp
+                    session.lastActivity = Date.now()
+                    logger.debug({ socketId: socket.id, bytes: ab.byteLength }, 'Audio chunk sent to Deepgram')
                 } else {
                     logger.warn({
                         socketId: socket.id,
@@ -269,6 +325,7 @@ export function registerDeepgramSocket(io: Server) {
             if (session) {
                 logger.info({ socketId: socket.id }, 'Socket disconnected, cleaning up Deepgram session')
                 if (session.keepAliveTimer) clearInterval(session.keepAliveTimer)
+                if (session.heartbeatTimer) clearInterval(session.heartbeatTimer)
                 try {
                     session.live.finish?.()
                 } catch (err) {

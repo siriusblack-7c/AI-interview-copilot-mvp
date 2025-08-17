@@ -1,10 +1,10 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { Zap } from 'lucide-react';
 import SpeechRecognition from './SpeechRecognition';
 import ResponseGenerator from './ResponseGenerator';
 import TextToSpeech from './TextToSpeech';
 import OpenAIConfig from './OpenAIConfig';
 import DocumentManager from './DocumentManager';
+import Header from './Header';
 import { useConversation } from '../hooks/useConversation';
 import { useMicrophone } from '../hooks/useMicrophone';
 import { useSystemAudio } from '../hooks/useSystemAudio';
@@ -15,6 +15,7 @@ import useTranscriptBuffer from '../hooks/useTranscriptBuffer';
 import { getSocket } from '../services/backend';
 import createAudioAttribution from '../utils/audioAttribution';
 import ConversationHistory from './ConversationHistory';
+import ScreenSharePreview from './ScreenSharePreview';
 
 export default function InterviewDashboard() {
     const [currentQuestion, setCurrentQuestion] = useState('');
@@ -214,36 +215,7 @@ export default function InterviewDashboard() {
     return (
         <div className="min-h-screen bg-[#1a1a1a] from-blue-50 via-white to-purple-50">
             {/* Header */}
-            <div className="bg-[#1a1a1a] shadow-sm border-b border-gray-600">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="w-40 h-10">
-                                <img src="/logo.svg" alt="AI Interview Copilot" className="h-10 w-40" />
-                            </div>
-                            <div>
-                                <h1 className="text-2xl font-bold text-white">AI Interview Copilot</h1>
-                                <p className="text-sm text-gray-300">Real-time interview question analysis & response generation</p>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center gap-4">
-                            {/* Session Stats */}
-                            <div className="hidden md:flex items-center gap-6 text-sm">
-                                <div className="flex items-center gap-2">
-                                    <Zap className="h-4 w-4 text-green-600" />
-                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${!isMicActive ? 'bg-red-100 text-red-700' :
-                                        isListening ? 'bg-green-100 text-green-700' :
-                                            'bg-blue-100 text-blue-700'
-                                        }`}>
-                                        {!isMicActive ? 'No Mic' : isListening ? 'Live' : 'Ready'}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <Header />
 
             {/* Main Content */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -251,37 +223,21 @@ export default function InterviewDashboard() {
                     {/* Left Column */}
                     <div className="space-y-6">
                         {/* Screen Share Preview (shown on top of voice input box while sharing) */}
-                        {isSharing && (
-                            <div className="bg-[#0f0f0f] border border-gray-700 rounded-md overflow-hidden">
-                                <div className="px-3 py-2 text-xs text-gray-300 bg-[#0a0a0a] border-b border-gray-700">
-                                    Screen Share Preview
-                                </div>
-                                <div className="relative">
-                                    <video
-                                        ref={shareVideoRef}
-                                        className="w-full max-h-64 object-contain bg-black"
-                                        autoPlay
-                                        muted
-                                        playsInline
-                                    />
-                                    {(!systemStream || systemStream.getVideoTracks().length === 0) && (
-                                        <div className="absolute inset-0 flex items-center justify-center text-xs text-gray-300 bg-black/60">
-                                            No video in shared stream. Select a Tab or Window (and enable "Share audio") in the picker.
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        )}
+                        <ScreenSharePreview
+                            systemStream={systemStream}
+                            isSharing={isSharing}
+                            onStartShare={startShare}
+                            onStopShare={stopShare}
+                        />
+
                         {/* Speech Recognition */}
                         <SpeechRecognition
                             isListening={isListening}
                             onToggleListening={toggleListening}
-                            onToggleShare={() => (isSharing ? stopShare() : startShare())}
                             onStopResponse={handleStopResponse}
                             isResponsePlaying={isResponsePlaying}
                             transcript={transcript}
                             isMicActive={isMicActive}
-                            isSharing={isSharing}
                         />
                         {/* Live Transcript */}
                         <LiveTranscript segments={segments} />

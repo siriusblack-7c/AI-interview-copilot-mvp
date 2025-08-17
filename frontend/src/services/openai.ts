@@ -23,7 +23,7 @@ class OpenAIService {
         experienceLevel?: string,
         keySkills?: string[]
     ): Promise<string> {
-        const resp = await api.post('/api/openai/generate', { jobTitle, industry, companyName, experienceLevel, keySkills });
+        const resp = await api.post('/api/openai/job-description', { jobTitle, industry, companyName, experienceLevel, keySkills });
         const text = resp.data?.text || '';
         if (!text) throw new Error('No response generated from server');
         return text;
