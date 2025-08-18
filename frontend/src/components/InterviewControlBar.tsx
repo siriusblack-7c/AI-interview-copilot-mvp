@@ -1,14 +1,26 @@
-import { ClockIcon, VideoOff, Sun, Settings, Mic, MicOff, ChevronDown, Phone } from 'lucide-react'
+import { ClockIcon, VideoOff, Sun, Settings, Mic, MicOff, ChevronDown, Phone, Video } from 'lucide-react'
 import { useInterviewState } from '../context/InterviewStateContext'
 
 interface InterviewControlBarProps {
     timerSeconds: number
     isSharing: boolean
     onToggleShare: () => void
+    onOpenSettings?: () => void
 }
 
-export default function InterviewControlBar({ timerSeconds, isSharing, onToggleShare }: InterviewControlBarProps) {
-    const { isListening, toggleListening, isMicActive } = useInterviewState()
+export default function InterviewControlBar({ timerSeconds, isSharing, onToggleShare, onOpenSettings }: InterviewControlBarProps) {
+    const { isListening, toggleListening, isMicActive, isCameraOn } = useInterviewState()
+    const enableCamera = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true })
+            try { (window as any).__setCamera?.(true, stream) } catch { }
+        } catch {
+            try { (window as any).__setCamera?.(false, null) } catch { }
+        }
+    }
+    const disableCamera = () => {
+        try { (window as any).__setCamera?.(false, null) } catch { }
+    }
     const mm = Math.floor(timerSeconds / 60).toString().padStart(2, '0')
     const ss = (timerSeconds % 60).toString().padStart(2, '0')
 
@@ -22,13 +34,13 @@ export default function InterviewControlBar({ timerSeconds, isSharing, onToggleS
                 </div>
             </div>
             <div className="flex items-center gap-2">
-                <button className="w-8 h-8 rounded-full bg-[#2a2a2a] hover:bg-[#3a3a3a] text-gray-300 flex items-center justify-center" title="Camera Off" aria-label="Camera Off">
-                    <VideoOff className="w-4 h-4" />
+                <button onClick={isCameraOn ? disableCamera : enableCamera} className={`w-8 h-8 rounded-full bg-[#2a2a2a] hover:bg-[#3a3a3a] text-gray-300 flex items-center justify-center ${isCameraOn ? 'bg-green-600 hover:bg-green-700' : ''}`} title="Disable Camera" aria-label="Disable Camera">
+                    {isCameraOn ? <Video className="w-4 h-4" /> : <VideoOff className="w-4 h-4" />}
                 </button>
                 <button className="w-8 h-8 rounded-full bg-[#2a2a2a] hover:bg-[#3a3a3a] text-gray-300 flex items-center justify-center" title="Brightness" aria-label="Brightness">
                     <Sun className="w-4 h-4" />
                 </button>
-                <button className="w-8 h-8 rounded-full bg-[#2a2a2a] hover:bg-[#3a3a3a] text-gray-300 flex items-center justify-center" title="Settings" aria-label="Settings">
+                <button onClick={onOpenSettings} className="w-8 h-8 rounded-full bg-[#2a2a2a] hover:bg-[#3a3a3a] text-gray-300 flex items-center justify-center" title="Settings" aria-label="Settings">
                     <Settings className="w-4 h-4" />
                 </button>
                 <button

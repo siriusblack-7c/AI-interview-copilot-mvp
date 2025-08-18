@@ -31,7 +31,7 @@ export default function InterviewCopilotPanel({
     isMuted,
     onManualQuestionSubmit,
 }: PanelProps) {
-    const { isListening, toggleListening, isGenerating } = useInterviewState()
+    const { isGenerating } = useInterviewState()
     const [autoScroll, setAutoScroll] = useState(true)
     const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -60,11 +60,11 @@ export default function InterviewCopilotPanel({
                 <div className="text-xs text-gray-200">Interview Copilot</div>
                 <div className="flex items-center gap-4">
                     <button
-                        className={`w-8 h-8 rounded-full flex items-center justify-center ${isListening ? 'bg-green-600 text-white' : 'bg-[#3a3a3a] text-gray-300'}`}
-                        title={isListening ? 'Mic Listening' : 'Mic Off'}
-                        onClick={toggleListening}
+                        className={`w-8 h-8 rounded-full flex items-center justify-center ${!isMuted ? 'bg-green-600 text-white' : 'bg-[#3a3a3a] text-gray-300'}`}
+                        title={!isMuted ? 'AI Speech On (click to mute)' : 'AI Speech Muted (click to unmute)'}
+                        onClick={() => onMuteToggle?.(!isMuted)}
                     >
-                        {isListening ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
+                        {isMuted ? <MicOff className="w-4 h-4" />: <Mic className="w-4 h-4" /> }
                     </button>
                     <label className="flex items-center gap-2 text-xs text-gray-300 select-none">
                         <span>Auto Scroll</span>

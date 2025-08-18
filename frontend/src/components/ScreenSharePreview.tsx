@@ -2,11 +2,13 @@ import { useState, useEffect, useRef } from 'react';
 import { MousePointerClickIcon } from 'lucide-react';
 import { useInterviewState } from '../context/InterviewStateContext';
 import InterviewControlBar from './InterviewControlBar';
+import CopilotSettingsModal from './CopilotSettingsModal';
 
 export default function ScreenSharePreview() {
-    const { systemStream, isSharing, startShare, stopShare } = useInterviewState();
+    const { systemStream, isSharing, startShare, stopShare, cameraStream } = useInterviewState();
     const shareVideoRef = useRef<HTMLVideoElement>(null);
     const [timer, setTimer] = useState<number>(0);
+    const [settingsOpen, setSettingsOpen] = useState(false);
 
     useEffect(() => {
         let interval: NodeJS.Timeout;
@@ -38,12 +40,14 @@ export default function ScreenSharePreview() {
     }, [systemStream]);
 
     return (
-        <div className="w-full flex flex-col items-center justify-center">
+        <div className="w-full flex flex-col items-center relative justify-center">
             <InterviewControlBar
                 timerSeconds={timer}
                 isSharing={isSharing}
                 onToggleShare={() => (isSharing ? stopShare() : startShare())}
+                onOpenSettings={() => setSettingsOpen(true)}
             />
+            <CopilotSettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
             {isSharing ? (
                 <div className="bg-[#0f0f0f] border border-gray-700 rounded-md overflow-hidden w-full">
@@ -55,6 +59,7 @@ export default function ScreenSharePreview() {
                             muted
                             playsInline
                         />
+
                         {(!systemStream || systemStream.getVideoTracks().length === 0) && (
                             <div className="absolute inset-0 flex items-center justify-center text-xs text-gray-300 bg-black/60">
                                 No video in shared stream. Select a Tab or Window (and enable \"Share audio\") in the picker.
@@ -76,6 +81,16 @@ export default function ScreenSharePreview() {
                     </button>
                 </div>
             )}
+            {/* PiP camera preview */}
+            {cameraStream ? (
+                <video
+                    className="absolute bottom-0 right-0 w-40 h-28 bg-black/60 rounded-md object-cover"
+                    autoPlay
+                    muted
+                    playsInline
+                    ref={el => { if (el && !el.srcObject) el.srcObject = cameraStream as any; }}
+                />
+            ) : null}
         </div>
     );
 }

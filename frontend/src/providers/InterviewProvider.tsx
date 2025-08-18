@@ -1,10 +1,14 @@
-import { type ReactNode, useState } from 'react';
-import { InterviewStateProvider } from '../context/InterviewStateContext';
+import { type ReactNode, useEffect, useState } from 'react';
+import { InterviewStateProvider, type CopilotSettings, type CopilotPermissions } from '../context/InterviewStateContext';
 import { useMicrophone } from '../hooks/useMicrophone';
 import { useSystemAudio } from '../hooks/useSystemAudio';
 
 export type MicEngine = 'webspeech';
 export type ShareEngine = 'displayMedia';
+
+// Internal setters exposed for hooks (not part of context contract)
+export let __setSettingsInternal: ((s: CopilotSettings) => void) | null = null;
+export let __setPermissionsInternal: ((p: CopilotPermissions) => void) | null = null;
 
 export default function InterviewProvider({
     children,
@@ -18,7 +22,82 @@ export default function InterviewProvider({
     const sys = useSystemAudio({ onQuestionDetected: () => { } });
 
     // Global UI state flags
-    const [isGenerating, setIsGenerating] = useState(false);
+    const [isGenerating] = useState(false);
+    const [settings, setSettings] = useState({
+        verbosity: 'default' as const,
+        language: 'English (Global)',
+        transcriptionDelay: 'default' as const,
+        temperature: 'default' as const,
+        performance: 'quality' as const,
+    });
+    const [permissions, setPermissions] = useState<CopilotPermissions>({ audio: false, video: false, notifications: false, extension: false });
+    const [isCameraOn, setIsCameraOn] = useState(false)
+    const [cameraStream, setCameraStream] = useState<MediaStream | null>(null)
+
+    // Wire internal setters for hooks
+    __setSettingsInternal = (next) => setSettings(next as any);
+    __setPermissionsInternal = (next) => setPermissions(next);
+
+    // Persist settings to localStorage and hydrate on mount
+    useEffect(() => {
+        const STORAGE_KEY = 'copilotSettings';
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) return;
+            const parsed = JSON.parse(raw);
+            const normalize = (s: any): CopilotSettings => {
+                const isOneOf = (v: any, arr: readonly string[]) => arr.includes(String(v));
+                return {
+                    verbosity: isOneOf(s?.verbosity, ['concise', 'default', 'lengthy']) ? s.verbosity : 'default',
+                    language: typeof s?.language === 'string' ? s.language : 'English (Global)',
+                    transcriptionDelay: isOneOf(s?.transcriptionDelay, ['low', 'default', 'high']) ? s.transcriptionDelay : 'default',
+                    temperature: isOneOf(s?.temperature, ['low', 'default', 'high']) ? s.temperature : 'default',
+                    performance: isOneOf(s?.performance, ['speed', 'quality']) ? s.performance : 'quality',
+                } as CopilotSettings;
+            };
+            const next = normalize(parsed);
+            setSettings({
+                verbosity: next.verbosity,
+                language: next.language,
+                transcriptionDelay: next.transcriptionDelay,
+                temperature: next.temperature,
+                performance: next.performance,
+            } as any);
+        } catch { /* ignore */ }
+    }, []);
+
+    useEffect(() => {
+        const STORAGE_KEY = 'copilotSettings';
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(settings)); } catch { /* ignore */ }
+    }, [settings]);
+
+    // Permissions persistence
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem('copilotPermissions');
+            if (raw) setPermissions({ ...permissions, ...JSON.parse(raw) });
+        } catch { }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+    useEffect(() => {
+        try { localStorage.setItem('copilotPermissions', JSON.stringify(permissions)); } catch { }
+    }, [permissions]);
+
+    // Expose a safe setter for camera preview via window; hooks/buttons will call this
+    useEffect(() => {
+        (window as any).__setCamera = (on: boolean, stream: MediaStream | null) => {
+            try {
+                if (!on) {
+                    setIsCameraOn(false)
+                    setCameraStream(prev => { try { prev?.getTracks().forEach(t => t.stop()) } catch { } return null })
+                    return
+                }
+                setIsCameraOn(true)
+                setCameraStream(prev => { try { prev?.getTracks().forEach(t => t.stop()) } catch { } return stream })
+            } catch { }
+        }
+        return () => { try { delete (window as any).__setCamera } catch { } }
+    }, [])
 
     return (
         <InterviewStateProvider
@@ -38,7 +117,10 @@ export default function InterviewProvider({
                 setSystemListening: sys.setListening,
                 // global flags
                 isGenerating,
-                setIsGenerating,
+                settings: settings as any,
+                permissions,
+                isCameraOn,
+                cameraStream,
             }}
         >
             {children}

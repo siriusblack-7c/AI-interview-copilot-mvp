@@ -17,7 +17,31 @@ export interface InterviewState {
 
     // Global UI flags
     isGenerating: boolean;
-    setIsGenerating: (v: boolean) => void;
+
+    // Copilot settings
+    settings: CopilotSettings;
+
+    // Permissions
+    permissions: CopilotPermissions;
+
+    // Camera preview variables
+    isCameraOn?: boolean;
+    cameraStream?: MediaStream | null;
+}
+
+export interface CopilotSettings {
+    verbosity: 'concise' | 'default' | 'lengthy';
+    language: string;
+    transcriptionDelay: 'low' | 'default' | 'high';
+    temperature: 'low' | 'default' | 'high';
+    performance: 'speed' | 'quality';
+}
+
+export interface CopilotPermissions {
+    audio: boolean;
+    video: boolean;
+    notifications: boolean;
+    extension: boolean;
 }
 
 const InterviewStateContext = createContext<InterviewState | undefined>(undefined);

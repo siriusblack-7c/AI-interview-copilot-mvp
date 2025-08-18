@@ -6,7 +6,6 @@ import { useInterviewState } from '../context/InterviewStateContext';
 interface ResponseGeneratorProps {
     question: string;
     onResponseGenerated: (response: string) => void;
-    openaiConfigured?: boolean;
     resumeText?: string;
     jobDescription?: string;
     additionalContext?: string;
@@ -19,7 +18,6 @@ interface ResponseGeneratorProps {
 export default function ResponseGenerator({
     question,
     onResponseGenerated,
-    openaiConfigured = false,
     resumeText = '',
     jobDescription = '',
     additionalContext = '',
@@ -28,7 +26,7 @@ export default function ResponseGenerator({
     isMuted: _isMuted = false,
     onManualQuestionSubmit,
 }: ResponseGeneratorProps) {
-    const { isListening, stopListening, startListening, setSystemListening, setIsGenerating } = useInterviewState();
+    const { isListening, stopListening, startListening, setSystemListening } = useInterviewState();
     // const [currentResponse, setCurrentResponse] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [typedQuestion, setTypedQuestion] = useState('');
@@ -52,7 +50,7 @@ export default function ResponseGenerator({
 
     const generateResponse = async (incoming: string): Promise<string> => {
         console.log('🔧 generateResponse (stream) called with:', incoming);
-        setIsGenerating(true);
+        // indicate generating via local UI state or external container if desired
         setError(null);
         // setCurrentResponse('');
         responseTextRef.current = '';
@@ -62,10 +60,6 @@ export default function ResponseGenerator({
         streamCleanupRef.current = null;
 
         try {
-            if (!openaiConfigured || !openaiService.isConfigured()) {
-                throw new Error('OpenAI is not configured. Please configure your API key first.');
-            }
-
             const context = {
                 resume: resumeText || undefined,
                 jobDescription: jobDescription || undefined,
@@ -107,7 +101,7 @@ export default function ResponseGenerator({
             onResponseGenerated('');
             return '';
         } finally {
-            setIsGenerating(false);
+            // generation finished
         }
     };
 
