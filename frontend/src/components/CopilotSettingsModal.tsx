@@ -105,7 +105,7 @@ export default function CopilotSettingsModal({ open, onClose }: Props) {
                         <div className="mb-4">
                             <div className="text-xs text-gray-300 mb-1">Performance Preference</div>
                             <div className="grid grid-cols-3 gap-2">
-                                {(['speed', 'quality', 'impact'] as const).map(v => (
+                                {(['speed', 'quality'] as const).map(v => (
                                     <button key={v} onClick={() => updateSettings({ performance : v })}
                                         className={`px-3 py-2 rounded ${settings.performance === v ? 'bg-purple-600 text-white' : 'bg-[#3a3a3a] text-gray-300'}`}>{v.charAt(0).toUpperCase() + v.slice(1)}</button>
                                 ))}

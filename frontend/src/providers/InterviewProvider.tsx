@@ -52,7 +52,7 @@ export default function InterviewProvider({
                     language: typeof s?.language === 'string' ? s.language : 'English (Global)',
                     transcriptionDelay: isOneOf(s?.transcriptionDelay, ['low', 'default', 'high']) ? s.transcriptionDelay : 'default',
                     temperature: isOneOf(s?.temperature, ['low', 'default', 'high']) ? s.temperature : 'default',
-                    performance: isOneOf(s?.performance, ['speed', 'quality', 'impact']) ? s.performance : 'quality',
+                    performance: isOneOf(s?.performance, ['speed', 'quality']) ? s.performance : 'quality',
                 } as CopilotSettings;
             };
             const next = normalize(parsed);

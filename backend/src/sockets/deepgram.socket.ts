@@ -61,13 +61,12 @@ function createDeepgramSession(socket: Socket, sessions: Map<string, DeepgramSes
         }
 
         const dg = createClient(env.DEEPGRAM_API_KEY)
+        // Always let Deepgram auto-detect the spoken language (no language hints)
         const live: LiveClient = dg.listen.live({
             model: env.DEEPGRAM_MODEL,
-            // Basic audio configuration - let Deepgram auto-detect
             interim_results: true,
             punctuate: true,
             smart_format: true,
-            language: env.DEEPGRAM_LANGUAGE,
             endpointing: env.DEEPGRAM_ENDPOINTING,
         } as any)
 
@@ -214,7 +213,6 @@ function createDeepgramSession(socket: Socket, sessions: Map<string, DeepgramSes
                                 interim_results: true,
                                 punctuate: true,
                                 smart_format: true,
-                                language: env.DEEPGRAM_LANGUAGE,
                                 endpointing: env.DEEPGRAM_ENDPOINTING,
                             } as any)
 

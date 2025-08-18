@@ -35,7 +35,7 @@ export interface CopilotSettings {
     language: string;
     transcriptionDelay: 'low' | 'default' | 'high';
     temperature: 'low' | 'default' | 'high';
-    performance: 'speed' | 'quality' | 'impact';
+    performance: 'speed' | 'quality';
 }
 
 export interface CopilotPermissions {

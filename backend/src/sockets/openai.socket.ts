@@ -4,18 +4,7 @@ import { randomUUID } from 'node:crypto'
 
 export function registerOpenAISocket(io: Server) {
     io.on('connection', (socket: Socket) => {
-        const sessionId = randomUUID()
-        const history: { ts: number; type: 'them' | 'ai' | 'suggestions' | 'event'; text?: string; data?: any }[] = []
-        const append = (entry: { ts?: number; type: 'them' | 'ai' | 'suggestions' | 'event'; text?: string; data?: any }) => {
-            history.push({ ts: Date.now(), ...entry })
-            try {
-                const fs = require('node:fs')
-                const path = require('node:path')
-                const dir = path.join(process.cwd(), 'data')
-                try { fs.mkdirSync(dir, { recursive: true }) } catch { }
-                fs.writeFileSync(path.join(dir, `interview-${sessionId}.json`), JSON.stringify(history, null, 2))
-            } catch { }
-        }
+        const append = (_entry: { ts?: number; type: 'them' | 'ai' | 'suggestions' | 'event'; text?: string; data?: any }) => { /* no-op */ }
         // Detection: FE sends an utterance, BE detects and proactively emits detected question
         socket.on('openai:detect:utterance', async (payload: { utterance: string; context?: ChatContext; source?: 'typed' | 'speech' }) => {
             try {

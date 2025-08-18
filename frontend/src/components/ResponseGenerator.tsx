@@ -163,7 +163,7 @@ export default function ResponseGenerator({
                     onChange={(e) => setTypedQuestion(e.target.value)}
                     onFocus={handleFocusInput}
                     onBlur={handleBlurInput}
-                    rows={3}
+                    rows={2}
                     ref={detectedInputRef}
                     placeholder="Ready responses captures from AI"
                     className="w-full text-sm resize-none px-3 py-3 bg-[#4a4a4a]  border border-gray-600 rounded-md text-gray-200 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-purple-600 focus:border-transparent"
@@ -174,7 +174,7 @@ export default function ResponseGenerator({
                 <button
                     onClick={submitTypedQuestion}
                     disabled={!typedQuestion.trim()}
-                    className="px-8 py-3 rounded-md font-semibold text-white bg-gradient-to-r from-purple-500 to-fuchsia-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-8 py-1 rounded-md font-semibold text-white bg-gradient-to-r from-purple-500 to-fuchsia-600 disabled:opacity-50 disabled:cursor-not-allowed"
                     title="Generate"
                 >
                     Generate

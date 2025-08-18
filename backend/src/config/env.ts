@@ -19,6 +19,7 @@ const EnvSchema = z.object({
     DEEPGRAM_SMART_FORMAT: z.boolean().default(true),
     DEEPGRAM_PUNCTUATE: z.boolean().default(true),
     DEEPGRAM_LANGUAGE: z.string().default('en-US'),
+    DEEPGRAM_LANGUAGES: z.string().optional(),
     DEEPGRAM_ENDPOINTING: z.number().default(500),
 })
 
@@ -33,6 +34,7 @@ export const env = EnvSchema.parse({
     DEEPGRAM_SMART_FORMAT: process.env.DEEPGRAM_SMART_FORMAT,
     DEEPGRAM_PUNCTUATE: process.env.DEEPGRAM_PUNCTUATE,
     DEEPGRAM_LANGUAGE: process.env.DEEPGRAM_LANGUAGE,
+    DEEPGRAM_LANGUAGES: process.env.DEEPGRAM_LANGUAGES,
     DEEPGRAM_ENDPOINTING: process.env.DEEPGRAM_ENDPOINTING,
 })
 
