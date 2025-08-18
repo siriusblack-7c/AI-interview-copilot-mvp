@@ -17,6 +17,7 @@ export interface InterviewState {
 
     // Global UI flags
     isGenerating: boolean;
+    setGenerating: (value: boolean) => void;
 
     // Copilot settings
     settings: CopilotSettings;
@@ -34,7 +35,7 @@ export interface CopilotSettings {
     language: string;
     transcriptionDelay: 'low' | 'default' | 'high';
     temperature: 'low' | 'default' | 'high';
-    performance: 'speed' | 'quality';
+    performance: 'speed' | 'quality' | 'impact';
 }
 
 export interface CopilotPermissions {

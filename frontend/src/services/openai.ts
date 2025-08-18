@@ -47,24 +47,33 @@ class OpenAIService {
 
     async streamAnswer(params: {
         question: string;
-        context?: { resume?: string; jobDescription?: string; additionalContext?: string };
+        context?: { resume?: string; jobDescription?: string; additionalContext?: string; verbosity?: 'concise' | 'default' | 'lengthy'; language?: string; temperature?: 'low' | 'default' | 'high'; performance?: 'speed' | 'quality' };
         onDelta: (delta: string) => void;
         onDone?: () => void;
         onError?: (message: string) => void;
+        onSuggestions?: (suggestions: string[]) => void;
     }): Promise<() => void> {
         const socket = getSocket();
         const handleDelta = (d: string) => params.onDelta(d || '');
         const handleDone = () => params.onDone?.();
         const handleError = (e: any) => params.onError?.(e?.message || 'stream error');
+        const handleSuggestions = (payload: any) => {
+            try {
+                const list = Array.isArray(payload) ? payload : (payload?.suggestions || []);
+                params.onSuggestions?.(list.map((s: any) => String(s || '')).filter(Boolean).slice(0, 3));
+            } catch { }
+        };
         socket.on('openai:chat:delta', handleDelta);
         socket.on('openai:chat:done', handleDone);
         socket.on('openai:chat:error', handleError);
+        socket.on('openai:chat:suggestions', handleSuggestions);
         socket.emit('openai:chat:start', { question: params.question, context: params.context });
         return () => {
             try {
                 socket.off('openai:chat:delta', handleDelta);
                 socket.off('openai:chat:done', handleDone);
                 socket.off('openai:chat:error', handleError);
+                socket.off('openai:chat:suggestions', handleSuggestions);
             } catch { }
         };
     }

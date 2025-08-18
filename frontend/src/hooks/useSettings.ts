@@ -15,13 +15,47 @@ export default function useSettings() {
     }
 
     const requestAudio = async () => {
-        try { await navigator.mediaDevices.getUserMedia({ audio: true }); updatePermissions({ audio: true }) } catch { updatePermissions({ audio: false }) }
+        try {
+            if (!navigator.mediaDevices?.getUserMedia) throw new Error('getUserMedia not supported')
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+            try { stream.getTracks().forEach(t => t.stop()) } catch { }
+            updatePermissions({ audio: true })
+        } catch {
+            try {
+                const status: any = await (navigator as any).permissions?.query?.({ name: 'microphone' as any })
+                updatePermissions({ audio: status?.state === 'granted' })
+            } catch {
+                updatePermissions({ audio: false })
+            }
+        }
     }
     const requestVideo = async () => {
-        try { await navigator.mediaDevices.getUserMedia({ video: true }); updatePermissions({ video: true }) } catch { updatePermissions({ video: false }) }
+        try {
+            if (!navigator.mediaDevices?.getUserMedia) throw new Error('getUserMedia not supported')
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true })
+            try { stream.getTracks().forEach(t => t.stop()) } catch { }
+            updatePermissions({ video: true })
+        } catch {
+            try {
+                const status: any = await (navigator as any).permissions?.query?.({ name: 'camera' as any })
+                updatePermissions({ video: status?.state === 'granted' })
+            } catch {
+                updatePermissions({ video: false })
+            }
+        }
     }
     const requestNotifications = async () => {
-        try { const res = await Notification.requestPermission(); updatePermissions({ notifications: res === 'granted' }) } catch { updatePermissions({ notifications: false }) }
+        try {
+            const res = await Notification.requestPermission()
+            updatePermissions({ notifications: res === 'granted' })
+        } catch {
+            try {
+                const status: any = await (navigator as any).permissions?.query?.({ name: 'notifications' as any })
+                updatePermissions({ notifications: status?.state === 'granted' })
+            } catch {
+                updatePermissions({ notifications: false })
+            }
+        }
     }
 
     return {

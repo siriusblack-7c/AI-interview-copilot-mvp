@@ -26,11 +26,12 @@ export default function ResponseGenerator({
     isMuted: _isMuted = false,
     onManualQuestionSubmit,
 }: ResponseGeneratorProps) {
-    const { isListening, stopListening, startListening, setSystemListening } = useInterviewState();
+    const { isListening, stopListening, startListening, setSystemListening, setGenerating, settings } = useInterviewState();
     // const [currentResponse, setCurrentResponse] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [typedQuestion, setTypedQuestion] = useState('');
     const pausedByTypingRef = useRef(false);
+    const [suggestions, setSuggestions] = useState<string[]>([]);
     const detectedInputRef = useRef<HTMLTextAreaElement | null>(null);
 
     const autoResizeDetectedInput = () => {
@@ -60,21 +61,27 @@ export default function ResponseGenerator({
         streamCleanupRef.current = null;
 
         try {
+            setGenerating(true);
             const context = {
                 resume: resumeText || undefined,
                 jobDescription: jobDescription || undefined,
-                additionalContext: additionalContext || undefined
+                additionalContext: additionalContext || undefined,
+                verbosity: settings.verbosity,
+                language: settings.language,
+                temperature: settings.temperature,
+                performance: settings.performance,
             };
 
             const donePromise = new Promise<string>((resolve) => {
                 openaiService
                     .streamAnswer({
                         question: incoming,
-                        context,
+                        context: context as any,
                         onDelta: (delta) => {
                             responseTextRef.current += delta;
                             // setCurrentResponse((prev) => prev + delta);
                         },
+                        onSuggestions: (s) => setSuggestions(s || []),
                         onDone: () => {
                             resolve(responseTextRef.current);
                         },
@@ -101,7 +108,7 @@ export default function ResponseGenerator({
             onResponseGenerated('');
             return '';
         } finally {
-            // generation finished
+            setGenerating(false);
         }
     };
 
@@ -182,6 +189,28 @@ export default function ResponseGenerator({
                     </div>
                     <p className="text-sm text-red-700 mt-1">{error}</p>
                     <p className="text-xs text-red-600 mt-1">Please check your OpenAI configuration and try again.</p>
+                </div>
+            )}
+
+            {/* Suggested questions */}
+            {suggestions.length > 0 && (
+                <div className="mt-4">
+                    <div className="text-xs text-gray-400 mb-2">Suggestions (click to ask):</div>
+                    <div className="flex flex-wrap gap-2">
+                        {suggestions.map((q, idx) => (
+                            <button
+                                key={idx}
+                                onClick={() => {
+                                    setTypedQuestion(q);
+                                    if (onManualQuestionSubmit) onManualQuestionSubmit(q);
+                                }}
+                                className="text-xs px-3 py-1 rounded-full bg-[#3a3a3a] text-gray-200 hover:bg-[#4a4a4a]"
+                                title="Ask this question"
+                            >
+                                {q}
+                            </button>
+                        ))}
+                    </div>
                 </div>
             )}
             {/* 

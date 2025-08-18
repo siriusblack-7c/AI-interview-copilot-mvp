@@ -64,7 +64,7 @@ export default function InterviewCopilotPanel({
                         title={!isMuted ? 'AI Speech On (click to mute)' : 'AI Speech Muted (click to unmute)'}
                         onClick={() => onMuteToggle?.(!isMuted)}
                     >
-                        {isMuted ? <MicOff className="w-4 h-4" />: <Mic className="w-4 h-4" /> }
+                        {isMuted ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
                     </button>
                     <label className="flex items-center gap-2 text-xs text-gray-300 select-none">
                         <span>Auto Scroll</span>
@@ -79,10 +79,17 @@ export default function InterviewCopilotPanel({
             </div>
 
             <div className="mb-2">
-                <span className="inline-flex items-center gap-2 text-xs text-gray-300">
-                    <span className="inline-block w-2 h-2 rounded-full bg-green-500" />
-                    Ready
-                </span>
+                {isGenerating ? (
+                    <span className="inline-flex items-center gap-2 text-xs text-purple-300">
+                        <span className="inline-block w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
+                        AI is thinking...
+                    </span>
+                ) : (
+                    <span className="inline-flex items-center gap-2 text-xs text-gray-300">
+                        <span className="inline-block w-2 h-2 rounded-full bg-green-500" />
+                        Ready
+                    </span>
+                )}
             </div>
 
             <div

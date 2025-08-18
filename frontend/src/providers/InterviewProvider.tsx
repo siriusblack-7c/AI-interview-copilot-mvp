@@ -22,7 +22,7 @@ export default function InterviewProvider({
     const sys = useSystemAudio({ onQuestionDetected: () => { } });
 
     // Global UI state flags
-    const [isGenerating] = useState(false);
+    const [isGenerating, setIsGenerating] = useState(false);
     const [settings, setSettings] = useState({
         verbosity: 'default' as const,
         language: 'English (Global)',
@@ -52,7 +52,7 @@ export default function InterviewProvider({
                     language: typeof s?.language === 'string' ? s.language : 'English (Global)',
                     transcriptionDelay: isOneOf(s?.transcriptionDelay, ['low', 'default', 'high']) ? s.transcriptionDelay : 'default',
                     temperature: isOneOf(s?.temperature, ['low', 'default', 'high']) ? s.temperature : 'default',
-                    performance: isOneOf(s?.performance, ['speed', 'quality']) ? s.performance : 'quality',
+                    performance: isOneOf(s?.performance, ['speed', 'quality', 'impact']) ? s.performance : 'quality',
                 } as CopilotSettings;
             };
             const next = normalize(parsed);
@@ -82,6 +82,43 @@ export default function InterviewProvider({
     useEffect(() => {
         try { localStorage.setItem('copilotPermissions', JSON.stringify(permissions)); } catch { }
     }, [permissions]);
+
+    // Keep permissions in sync with the browser's permission state when available
+    useEffect(() => {
+        const perms: any = (navigator as any).permissions
+        if (!perms?.query) return
+
+        let micStatus: any, camStatus: any, notifStatus: any
+
+        const sync = () => {
+            try {
+                setPermissions((prev) => ({
+                    ...prev,
+                    audio: micStatus?.state === 'granted' ? true : prev.audio,
+                    video: camStatus?.state === 'granted' ? true : prev.video,
+                    notifications: notifStatus?.state === 'granted' ? true : prev.notifications,
+                }))
+            } catch { }
+        }
+
+        Promise.all([
+            perms.query({ name: 'microphone' as any }).catch(() => null),
+            perms.query({ name: 'camera' as any }).catch(() => null),
+            perms.query({ name: 'notifications' as any }).catch(() => null),
+        ]).then(([m, c, n]) => {
+            micStatus = m; camStatus = c; notifStatus = n
+            sync()
+            try { if (micStatus) micStatus.onchange = sync } catch { }
+            try { if (camStatus) camStatus.onchange = sync } catch { }
+            try { if (notifStatus) notifStatus.onchange = sync } catch { }
+        })
+
+        return () => {
+            try { if (micStatus) micStatus.onchange = null } catch { }
+            try { if (camStatus) camStatus.onchange = null } catch { }
+            try { if (notifStatus) notifStatus.onchange = null } catch { }
+        }
+    }, [])
 
     // Expose a safe setter for camera preview via window; hooks/buttons will call this
     useEffect(() => {
@@ -117,6 +154,7 @@ export default function InterviewProvider({
                 setSystemListening: sys.setListening,
                 // global flags
                 isGenerating,
+                setGenerating: setIsGenerating,
                 settings: settings as any,
                 permissions,
                 isCameraOn,

@@ -154,6 +154,13 @@ function createDeepgramSession(socket: Socket, sessions: Map<string, DeepgramSes
                                 const id = randomUUID()
                                 socket.emit('detect:question', { id, question: detection.question, source: 'speech' })
                             }
+                            // Emit proactive suggestions from final segment
+                            try {
+                                const suggestions = await openaiService.suggestNextQuestionsFromUtterance(text)
+                                if (suggestions.length) {
+                                    socket.emit('openai:chat:suggestions', suggestions)
+                                }
+                            } catch { }
                         } catch (err: any) {
                             logger.warn({ err }, 'openai detect failed for deepgram transcript')
                         }

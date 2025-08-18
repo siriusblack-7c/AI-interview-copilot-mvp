@@ -1,4 +1,5 @@
-import { ClockIcon, VideoOff, Sun, Settings, Mic, MicOff, ChevronDown, Phone, Video } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { ClockIcon, VideoOff, Sun, Settings, Mic, MicOff, ChevronDown, Phone, Video, LogOut, PhoneOff } from 'lucide-react'
 import { useInterviewState } from '../context/InterviewStateContext'
 
 interface InterviewControlBarProps {
@@ -6,10 +7,25 @@ interface InterviewControlBarProps {
     isSharing: boolean
     onToggleShare: () => void
     onOpenSettings?: () => void
+    onLeaveCall?: () => void
+    onEndCall?: () => void
 }
 
-export default function InterviewControlBar({ timerSeconds, isSharing, onToggleShare, onOpenSettings }: InterviewControlBarProps) {
+export default function InterviewControlBar({ timerSeconds, isSharing, onToggleShare, onOpenSettings, onLeaveCall, onEndCall }: InterviewControlBarProps) {
     const { isListening, toggleListening, isMicActive, isCameraOn } = useInterviewState()
+    const [menuOpen, setMenuOpen] = useState(false as boolean)
+    const menuRef = useRef<HTMLDivElement | null>(null)
+
+    // Close the dropdown on outside click
+    useEffect(() => {
+        const onDocClick = (e: MouseEvent) => {
+            if (!menuRef.current) return
+            if (menuRef.current.contains(e.target as Node)) return
+            setMenuOpen(false)
+        }
+        document.addEventListener('mousedown', onDocClick)
+        return () => document.removeEventListener('mousedown', onDocClick)
+    }, [])
     const enableCamera = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: true })
@@ -52,16 +68,38 @@ export default function InterviewControlBar({ timerSeconds, isSharing, onToggleS
                 >
                     {isListening ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
                 </button>
-                <ChevronDown className="w-4 h-4 text-gray-400 ml-1" />
-                <button
-                    onClick={onToggleShare}
-                    className="ml-3 flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white text-xs px-3 py-2 rounded-md"
-                    title={isSharing ? 'End Interview' : 'Start Interview'}
-                >
-                    <Phone className="w-4 h-4" />
-                    Live Interview
-                    <ChevronDown className="w-4 h-4" />
-                </button>
+                <div className="relative" ref={menuRef as any}>
+                    <button
+                        onClick={() => {
+                            if (!isSharing) { onToggleShare(); return }
+                            setMenuOpen((prev) => !prev)
+                        }}
+                        className={`ml-3 flex items-center gap-2 ${isSharing ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'} text-white text-xs px-3 py-2 rounded-md`}
+                        title={isSharing ? 'Leave Interview' : 'Start Interview'}
+                    >
+                        <Phone className="w-4 h-4 rotate-[135deg]" />
+                        {isSharing ? 'Leave Interview' : 'Start Interview'}
+                        {isSharing && <ChevronDown className="w-4 h-4" />}
+                    </button>
+                    {isSharing && menuOpen && (
+                        <div className="absolute right-0 mt-2 w-44 rounded-lg bg-[#2c2c2c] border border-gray-700 shadow-lg p-2 z-20">
+                            <button
+                                onClick={() => { setMenuOpen(false); (onLeaveCall || onToggleShare)() }}
+                                className="w-full flex items-center justify-between text-sm text-white hover:bg-[#3a3a3a] px-3 py-2 rounded-md"
+                            >
+                                <span>Leave Call</span>
+                                <LogOut className="w-4 h-4" />
+                            </button>
+                            <button
+                                onClick={() => { setMenuOpen(false); (onEndCall || onToggleShare)() }}
+                                className="w-full flex items-center justify-between text-sm text-white hover:bg-[#3a3a3a] px-3 py-2 rounded-md mt-1"
+                            >
+                                <span>End Call</span>
+                                <PhoneOff className="w-4 h-4 text-red-400" />
+                            </button>
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     )

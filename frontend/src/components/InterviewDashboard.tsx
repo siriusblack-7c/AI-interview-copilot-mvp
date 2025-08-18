@@ -228,18 +228,10 @@ export default function InterviewDashboard() {
                                 onMuteToggle={handleMuteToggle}
                                 isMuted={isMuted}
                                 onManualQuestionSubmit={(q) => {
-                                    try {
-                                        const socket = getSocket();
-                                        socket.emit('openai:detect:utterance', {
-                                            utterance: q,
-                                            source: 'typed',
-                                            context: {
-                                                resume: resumeText || undefined,
-                                                jobDescription: jobDescription || undefined,
-                                                additionalContext: additionalContext || undefined,
-                                            },
-                                        });
-                                    } catch { }
+                                    // Immediately set as current question so ResponseGenerator streams it
+                                    // Do NOT re-emit detection for typed question to avoid duplicate question entries
+                                    setCurrentQuestion(q);
+                                    addQuestion(q);
                                 }}
                             />
                         </Suspense>
