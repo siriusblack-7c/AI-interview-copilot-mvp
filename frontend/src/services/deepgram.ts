@@ -35,6 +35,7 @@ class DeepgramService {
 
         const handleTranscript = (payload: any) => {
             try {
+                console.log('[deepgram] transcript', payload?.text, payload?.isFinal)
                 onTranscript({ text: String(payload?.text || ''), isFinal: !!payload?.isFinal })
             } catch (err) { console.error(err) }
         }
@@ -61,7 +62,6 @@ class DeepgramService {
         recorder.ondataavailable = async (e) => {
             if (e.data && e.data.size > 0) {
                 try {
-                    console.log('[deepgram] sending chunk bytes=', e.data.size)
                     const ab = await e.data.arrayBuffer()
                     socket.emit('deepgram:audio', ab)
                 } catch { }

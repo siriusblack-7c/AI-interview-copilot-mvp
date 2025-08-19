@@ -245,7 +245,7 @@ export default function InterviewDashboard() {
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
                     <div className="flex items-center justify-between text-sm text-gray-400">
                         <p>AI Interview Copilot</p>
-                        <p>Built with React + TypeScript + Tailwind CSS</p>
+                        <p>RoboApply</p>
                     </div>
                 </div>
             </div>

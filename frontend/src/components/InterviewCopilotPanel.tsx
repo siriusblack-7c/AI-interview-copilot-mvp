@@ -55,7 +55,7 @@ export default function InterviewCopilotPanel({
     })
 
     return (
-        <div className="bg-[#2c2c2c] rounded-md shadow-lg border border-gray-700 p-4 flex flex-col">
+        <div className="bg-[#2c2c2c] rounded-md shadow-lg border border-gray-700 p-4 flex flex-col h-[calc(100vh-120px)]">
             <div className="flex items-center justify-between mb-2">
                 <div className="text-xs text-gray-200">Interview Copilot</div>
                 <div className="flex items-center gap-4">
@@ -94,7 +94,7 @@ export default function InterviewCopilotPanel({
 
             <div
                 ref={(el) => { parentRef.current = el as HTMLDivElement; scrollRef.current = el as HTMLDivElement; }}
-                className="flex-1 min-h-[200px] max-h-[calc(100vh-500px)] bg-[#303030] border border-gray-700 rounded-md p-6 overflow-y-auto mb-6"
+                className="flex-1 min-h-[250px] bg-[#303030] border border-gray-700 rounded-md p-6 overflow-y-auto mb-2"
             >
                 {items.length === 0 ? (
                     <div className="h-full w-full flex items-center justify-center text-sm text-gray-300 text-center">

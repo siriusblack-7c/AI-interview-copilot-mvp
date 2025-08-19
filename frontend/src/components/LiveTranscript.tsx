@@ -99,12 +99,18 @@ function LiveTranscript({ segments }: LiveTranscriptProps) {
     }, [segments])
 
     return (
-        <div className="bg-[#2c2c2c] rounded-md shadow-lg border border-gray-700 p-4 h-64 overflow-y-auto" ref={scrollRef}>
+        <div className="bg-[#2c2c2c] rounded-md shadow-lg border border-gray-700 p-4 h-[calc(100vh-450px)] overflow-y-auto" ref={scrollRef}>
             <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-200 flex items-center gap-2">
-                    <MessageCircle className="h-5 w-5 text-green-600" />
+                <h3 className="text-sm font-semibold text-gray-200 flex items-center gap-2">
+                    <MessageCircle className="h-5 w-5 text-purple-600" />
                     Live Transcript
                 </h3>
+                <div className="flex items-center gap-2">
+                    <span className="inline-block w-2 h-2 rounded-full bg-green-500" />
+                    <div className="text-xs text-gray-500">
+                        Ready
+                    </div>
+                </div>
             </div>
             {displayRows.length === 0 ? (
                 <p className="text-sm text-gray-500">Live transcript will appear here.</p>
