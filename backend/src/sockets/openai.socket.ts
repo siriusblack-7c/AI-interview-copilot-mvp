@@ -2,6 +2,7 @@ import type { Server, Socket } from 'socket.io'
 import { openaiService, type ChatContext } from '../services/openai.service'
 import { randomUUID } from 'node:crypto'
 import { chatMemory } from './chatMemory'
+import { sessionCache } from '../services/sessionCache'
 
 export function registerOpenAISocket(io: Server) {
     io.on('connection', (socket: Socket) => {
@@ -19,11 +20,21 @@ export function registerOpenAISocket(io: Server) {
             } catch { /* ignore */ }
         }
         // Detection: FE sends an utterance, BE detects and proactively emits detected question
-        socket.on('openai:detect:utterance', async (payload: { utterance: string; context?: ChatContext; source?: 'typed' | 'speech' }) => {
+        socket.on('openai:detect:utterance', async (payload: { utterance: string; context?: ChatContext; source?: 'typed' | 'speech'; sessionId?: string }) => {
             try {
-                const { utterance, context, source } = payload || ({} as any)
+                const { utterance, context, source, sessionId } = payload || ({} as any)
                 if (!utterance) return
                 append({ type: 'them', text: utterance })
+                if (sessionId) {
+                    const s = sessionCache.get(sessionId)
+                    if (s) {
+                        openaiService.setDefaultContext({
+                            resume: s.resume,
+                            jobDescription: s.jobDescription,
+                            additionalContext: s.context,
+                        })
+                    }
+                }
                 const result = await openaiService.detectQuestionAndAnswer(utterance, context)
                 if (result.isQuestion && result.question) {
                     const detectedId = randomUUID()
@@ -33,11 +44,21 @@ export function registerOpenAISocket(io: Server) {
                 socket.emit('detect:error', { message: err?.message || 'detect error' })
             }
         })
-        socket.on('openai:chat:start', async (payload: { detectedId?: string; question: string; context?: ChatContext }) => {
+        socket.on('openai:chat:start', async (payload: { detectedId?: string; question: string; context?: ChatContext; sessionId?: string }) => {
             try {
-                const { question, context } = payload || ({} as any)
+                const { question, context, sessionId } = payload || ({} as any)
                 // Add the explicit question to history prior to answering
                 chatMemory.appendUser(socket.id, question)
+                if (sessionId) {
+                    const s = sessionCache.get(sessionId)
+                    if (s) {
+                        openaiService.setDefaultContext({
+                            resume: s.resume,
+                            jobDescription: s.jobDescription,
+                            additionalContext: s.context,
+                        })
+                    }
+                }
                 // Summarize older history when threshold reached
                 try {
                     const SUMMARIZE_AFTER = 30

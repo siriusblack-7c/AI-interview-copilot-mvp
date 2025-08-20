@@ -14,6 +14,7 @@ interface PanelProps {
     resumeText?: string
     jobDescription?: string
     additionalContext?: string
+    sessionId?: string
     onMuteToggle?: (muted: boolean) => void
     isMuted?: boolean
     onManualQuestionSubmit?: (q: string) => void
@@ -27,6 +28,7 @@ export default function InterviewCopilotPanel({
     resumeText,
     jobDescription,
     additionalContext,
+    sessionId,
     onMuteToggle,
     isMuted,
     onManualQuestionSubmit,
@@ -150,6 +152,7 @@ export default function InterviewCopilotPanel({
                         resumeText={resumeText}
                         jobDescription={jobDescription}
                         additionalContext={additionalContext}
+                        sessionId={sessionId}
                         onMuteToggle={onMuteToggle}
                         isMuted={isMuted}
                         onManualQuestionSubmit={onManualQuestionSubmit}

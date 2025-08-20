@@ -10,6 +10,7 @@ import { logger } from './utils/logger'
 import healthRouter from './routes/health.routes'
 import openaiRouter from './routes/openai.routes'
 import filesRouter from './routes/files.routes'
+import sessionRouter from './routes/session.routes'
 
 export function createApp() {
     const app = express()
@@ -53,6 +54,7 @@ export function createApp() {
     app.use('/health', healthRouter)
     app.use('/api/openai', openaiRouter)
     app.use('/api/files', filesRouter)
+    app.use('/api/session', sessionRouter)
 
     app.use(rateLimiter)
 

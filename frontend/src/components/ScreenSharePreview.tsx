@@ -4,7 +4,7 @@ import { useInterviewState } from '../context/InterviewStateContext';
 import InterviewControlBar from './InterviewControlBar';
 import CopilotSettingsModal from './CopilotSettingsModal';
 
-export default function ScreenSharePreview() {
+export default function ScreenSharePreview({ onLeaveCall, onEndCall, isMock = false }: { onLeaveCall?: () => void; onEndCall?: () => void; isMock?: boolean }) {
     const { systemStream, isSharing, startShare, stopShare, cameraStream } = useInterviewState();
     const shareVideoRef = useRef<HTMLVideoElement>(null);
     const [timer, setTimer] = useState<number>(0);
@@ -23,6 +23,7 @@ export default function ScreenSharePreview() {
             if (interval) clearInterval(interval);
         };
     }, [isSharing]);
+
 
     useEffect(() => {
         const video = shareVideoRef.current;
@@ -45,7 +46,10 @@ export default function ScreenSharePreview() {
                 timerSeconds={timer}
                 isSharing={isSharing}
                 onToggleShare={() => (isSharing ? stopShare() : startShare())}
+                onLeaveCall={async () => { try { if (isSharing) stopShare(); } finally { try { await onLeaveCall?.() } catch { } } }}
+                onEndCall={async () => { try { if (isSharing) stopShare(); } finally { try { await onEndCall?.() } catch { } } }}
                 onOpenSettings={() => setSettingsOpen(true)}
+                isMock={isMock}
             />
             <CopilotSettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
@@ -70,15 +74,17 @@ export default function ScreenSharePreview() {
             ) : (
                 <div className="bg-[#484848] border border-gray-700 h-[200px] rounded-md overflow-hidden w-full flex flex-col items-center justify-center">
                     <div className="px-3 py-2 text-xs text-gray-300">
-                        Select your interview meeting room
+                        {isMock ? 'Mock interview' : 'Select your interview meeting room'}
                     </div>
-                    <button
-                        onClick={startShare}
-                        className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-md flex items-center gap-2 transition-colors"
-                    >
-                        <MousePointerClickIcon className="w-4 h-4" />
-                        Select
-                    </button>
+                    {!isMock && (
+                        <button
+                            onClick={startShare}
+                            className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-md flex items-center gap-2 transition-colors"
+                        >
+                            <MousePointerClickIcon className="w-4 h-4" />
+                            Select
+                        </button>
+                    )}
                 </div>
             )}
             {/* PiP camera preview */}

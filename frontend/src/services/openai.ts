@@ -8,9 +8,10 @@ class OpenAIService {
 
     async generateInterviewResponse(
         question: string,
-        context?: { resume?: string; jobDescription?: string; additionalContext?: string }
+        context?: { resume?: string; jobDescription?: string; additionalContext?: string },
+        sessionId?: string,
     ): Promise<string> {
-        const resp = await api.post('/api/openai/generate', { question, context });
+        const resp = await api.post('/api/openai/generate', { question, context, sessionId });
         const text = resp.data?.text || '';
         if (!text) throw new Error('No response generated from server');
         return text;
@@ -31,9 +32,10 @@ class OpenAIService {
 
     async detectQuestionAndAnswer(
         utterance: string,
-        context?: { resume?: string; jobDescription?: string; additionalContext?: string }
+        context?: { resume?: string; jobDescription?: string; additionalContext?: string },
+        sessionId?: string,
     ): Promise<{ isQuestion: boolean; question: string | null; answer: string | null }> {
-        const resp = await api.post('/api/openai/detect', { utterance, context });
+        const resp = await api.post('/api/openai/detect', { utterance, context, sessionId });
         const { isQuestion, question, answer } = resp.data || {};
         return { isQuestion: !!isQuestion, question: question ?? null, answer: answer ?? null };
     }
@@ -48,6 +50,7 @@ class OpenAIService {
     async streamAnswer(params: {
         question: string;
         context?: { resume?: string; jobDescription?: string; additionalContext?: string; verbosity?: 'concise' | 'default' | 'lengthy'; language?: string; temperature?: 'low' | 'default' | 'high'; performance?: 'speed' | 'quality' };
+        sessionId?: string;
         onDelta: (delta: string) => void;
         onDone?: () => void;
         onError?: (message: string) => void;
@@ -67,7 +70,7 @@ class OpenAIService {
         socket.on('openai:chat:done', handleDone);
         socket.on('openai:chat:error', handleError);
         socket.on('openai:chat:suggestions', handleSuggestions);
-        socket.emit('openai:chat:start', { question: params.question, context: params.context });
+        socket.emit('openai:chat:start', { question: params.question, context: params.context, sessionId: params.sessionId });
         return () => {
             try {
                 socket.off('openai:chat:delta', handleDelta);

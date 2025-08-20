@@ -9,9 +9,10 @@ interface InterviewControlBarProps {
     onOpenSettings?: () => void
     onLeaveCall?: () => void
     onEndCall?: () => void
+    isMock?: boolean
 }
 
-export default function InterviewControlBar({ timerSeconds, isSharing, onToggleShare, onOpenSettings, onLeaveCall, onEndCall }: InterviewControlBarProps) {
+export default function InterviewControlBar({ timerSeconds, isSharing, onToggleShare, onOpenSettings, onLeaveCall, onEndCall, isMock = false }: InterviewControlBarProps) {
     const { isListening, toggleListening, isMicActive, isCameraOn } = useInterviewState()
     const [menuOpen, setMenuOpen] = useState(false as boolean)
     const menuRef = useRef<HTMLDivElement | null>(null)
@@ -39,6 +40,9 @@ export default function InterviewControlBar({ timerSeconds, isSharing, onToggleS
     }
     const mm = Math.floor(timerSeconds / 60).toString().padStart(2, '0')
     const ss = (timerSeconds % 60).toString().padStart(2, '0')
+
+    const mainLabel = isMock ? 'Mock Interview' : (isSharing ? 'Leave Interview' : 'Start Interview')
+    const mainIsActive = isSharing && !isMock
 
     return (
         <div className="w-full flex items-center justify-between px-2 py-2 flex-wrap gap-2">
@@ -68,17 +72,18 @@ export default function InterviewControlBar({ timerSeconds, isSharing, onToggleS
                 <div className="relative" ref={menuRef as any}>
                     <button
                         onClick={() => {
+                            if (isMock) { setMenuOpen((prev) => !prev); return }
                             if (!isSharing) { onToggleShare(); return }
                             setMenuOpen((prev) => !prev)
                         }}
-                        className={`ml-3 flex items-center gap-2 ${isSharing ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'} text-white text-xs px-3 py-2 rounded-md`}
-                        title={isSharing ? 'Leave Interview' : 'Start Interview'}
+                        className={`ml-3 flex items-center gap-2 ${mainIsActive || isMock ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'} text-white text-xs px-3 py-2 rounded-md`}
+                        title={mainLabel}
                     >
                         <Phone className="w-4 h-4 rotate-[135deg]" />
-                        {isSharing ? 'Leave Interview' : 'Start Interview'}
-                        {isSharing && <ChevronDown className="w-4 h-4" />}
+                        {mainLabel}
+                        {(isSharing || isMock) && <ChevronDown className="w-4 h-4" />}
                     </button>
-                    {isSharing && menuOpen && (
+                    {(menuOpen) && (
                         <div className="absolute right-0 mt-2 w-44 rounded-lg bg-[#2c2c2c] border border-gray-700 shadow-lg p-2 z-20">
                             <button
                                 onClick={() => { setMenuOpen(false); (onLeaveCall || onToggleShare)() }}

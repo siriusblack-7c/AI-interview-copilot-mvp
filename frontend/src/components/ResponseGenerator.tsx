@@ -8,6 +8,7 @@ interface ResponseGeneratorProps {
     resumeText?: string;
     jobDescription?: string;
     additionalContext?: string;
+    sessionId?: string;
     onMuteToggle?: (muted: boolean) => void;
     isMuted?: boolean;
     // New props for manual typing + mic control
@@ -17,15 +18,13 @@ interface ResponseGeneratorProps {
 export default function ResponseGenerator({
     question,
     onResponseGenerated,
-    resumeText = '',
-    jobDescription = '',
-    additionalContext = '',
+    sessionId,
     // props kept for compatibility; not used here
     onMuteToggle: _onMuteToggle,
     isMuted: _isMuted = false,
     onManualQuestionSubmit,
 }: ResponseGeneratorProps) {
-    const { isListening, stopListening, startListening, setSystemListening, setGenerating, settings, isSharing } = useInterviewState();
+    const { isListening, stopListening, startListening, setSystemListening, setGenerating, isSharing } = useInterviewState();
     // const [currentResponse, setCurrentResponse] = useState('');
     const [typedQuestion, setTypedQuestion] = useState('');
     const pausedByTypingRef = useRef(false);
@@ -73,21 +72,13 @@ export default function ResponseGenerator({
 
         try {
             setGenerating(true);
-            const context = {
-                resume: resumeText || undefined,
-                jobDescription: jobDescription || undefined,
-                additionalContext: additionalContext || undefined,
-                verbosity: settings.verbosity,
-                language: settings.language,
-                temperature: settings.temperature,
-                performance: settings.performance,
-            };
 
             const donePromise = new Promise<string>((resolve, reject) => {
                 openaiService
                     .streamAnswer({
                         question: incoming,
-                        context: context as any,
+                        context: undefined as any,
+                        sessionId: sessionId,
                         onDelta: (delta) => {
                             responseTextRef.current += delta;
                             // setCurrentResponse((prev) => prev + delta);

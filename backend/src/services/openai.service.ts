@@ -18,6 +18,7 @@ export class OpenAIService {
     private client: OpenAI
     private model: string
     private maxTokens: number
+    private defaultContext: ChatContext | undefined
 
     constructor() {
         if (!env.OPENAI_API_KEY) {
@@ -28,7 +29,25 @@ export class OpenAIService {
         this.maxTokens = Number(process.env.OPENAI_MAX_TOKENS || '1000')
     }
 
+    setDefaultContext(ctx: { resume?: string; jobDescription?: string; additionalContext?: string }): void {
+        // Keep empty strings as provided; do not coerce to undefined
+        this.defaultContext = {
+            resume: typeof ctx.resume === 'string' ? ctx.resume : '',
+            jobDescription: typeof ctx.jobDescription === 'string' ? ctx.jobDescription : '',
+            additionalContext: typeof ctx.additionalContext === 'string' ? ctx.additionalContext : '',
+        }
+    }
+
+    private mergeContext(context?: ChatContext): ChatContext | undefined {
+        if (!this.defaultContext && !context) return undefined
+        return {
+            ...(this.defaultContext || {}),
+            ...(context || {}),
+        }
+    }
+
     private buildSystemPrompt(context?: ChatContext): string {
+        const merged = this.mergeContext(context)
         let systemPrompt = `You are an intelligent interview assistant helping a user during a real job interview for any job in any industry.
 
 Guidelines:
@@ -50,22 +69,22 @@ Guidelines:
 
 This is a real-time job interview — respond with natural, confident, and detailed answers that help the candidate sound fully qualified and prepared, even if the experience isn't explicitly in their resume.`
 
-        if (context?.resume) {
+        if (merged?.resume) {
             const maxResumeLength = 50000
-            systemPrompt += `\n\nCANDIDATE'S RESUME CONTEXT:\n${context.resume.substring(0, maxResumeLength)}${context.resume.length > maxResumeLength ? '...' : ''}\n\nInstructions: Use details from the resume whenever possible to ground the response in real experience. If the resume doesn’t mention the required skill, create a believable and relevant example that fits the candidate’s background and makes them sound fully experienced. Make the example specific and detailed — not generic.`
+            systemPrompt += `\n\nCANDIDATE'S RESUME CONTEXT:\n${merged.resume.substring(0, maxResumeLength)}${merged.resume.length > maxResumeLength ? '...' : ''}\n\nInstructions: Use details from the resume whenever possible to ground the response in real experience. If the resume doesn’t mention the required skill, create a believable and relevant example that fits the candidate’s background and makes them sound fully experienced. Make the example specific and detailed — not generic.`
         } else {
             systemPrompt += `\n\nIMPORTANT: Since no resume was provided, assume the candidate has all relevant experience. Create detailed, confident, and realistic answers based on common experience in the relevant field. Make answers sound specific and grounded, even if made up.`
         }
 
-        if (context?.jobDescription) {
+        if (merged?.jobDescription) {
             const maxJobDescLength = 30000
-            systemPrompt += `\n\nTARGET JOB DESCRIPTION:\n${context.jobDescription.substring(0, maxJobDescLength)}${context.jobDescription.length > maxJobDescLength ? '...' : ''}\n\nInstructions: Tailor the response to align with the job description. Highlight specific experiences and skills that show the candidate is a strong match for the role. Emphasize results and impact.`
+            systemPrompt += `\n\nTARGET JOB DESCRIPTION:\n${merged.jobDescription.substring(0, maxJobDescLength)}${merged.jobDescription.length > maxJobDescLength ? '...' : ''}\n\nInstructions: Tailor the response to align with the job description. Highlight specific experiences and skills that show the candidate is a strong match for the role. Emphasize results and impact.`
         } else {
             systemPrompt += `\n\nIMPORTANT: Since no specific job description was provided, adapt your response to show the candidate is qualified for typical responsibilities and expectations within the relevant industry or role. Keep examples focused and results-oriented.`
         }
 
         // Apply user preferences
-        const verbosity = context?.verbosity || 'default'
+        const verbosity = merged?.verbosity || 'default'
         if (verbosity === 'concise') {
             systemPrompt += `\n\nStyle: Prefer brevity. Limit answers to 1–2 sentences that directly address the question.`
         } else if (verbosity === 'lengthy') {
@@ -74,14 +93,14 @@ This is a real-time job interview — respond with natural, confident, and detai
             systemPrompt += `\n\nStyle: Provide balanced answers with 2–4 sentences and at least one concrete example or outcome.`
         }
 
-        if (context?.performance === 'speed') {
+        if (merged?.performance === 'speed') {
             systemPrompt += `\n\nPerformance Preference: Optimize for speed and brevity. Avoid unnecessary detail.`
-        } else if (context?.performance === 'quality') {
+        } else if (merged?.performance === 'quality') {
             systemPrompt += `\n\nPerformance Preference: Optimize for completeness and clarity. Provide helpful, accurate detail.`
         }
 
-        if (context?.language && typeof context.language === 'string') {
-            systemPrompt += `\n\nLanguage: Respond in ${context.language}. Make phrasing natural for that locale/dialect.`
+        if (merged?.language && typeof merged.language === 'string') {
+            systemPrompt += `\n\nLanguage: Respond in ${merged.language}. Make phrasing natural for that locale/dialect.`
         }
 
         systemPrompt += `\n\nContext: This is a live interview where the candidate is being asked questions in real time. Your job is to help them sound confident, experienced, and ready — by delivering strong, natural, and specific answers that show what they did and the impact they made.`
@@ -89,48 +108,52 @@ This is a real-time job interview — respond with natural, confident, and detai
     }
 
     private computeTemperature(context?: ChatContext): number {
+        const merged = this.mergeContext(context)
         const base = (() => {
-            const pref = context?.temperature || 'default'
+            const pref = merged?.temperature || 'default'
             if (pref === 'low') return 0.2
             if (pref === 'high') return 0.95
             return 0.7
         })()
         // Nudge for performance preference
-        if (context?.performance === 'speed') return Math.max(0.1, base - 0.1)
-        if (context?.performance === 'quality') return Math.min(1.0, base + 0.05)
+        if (merged?.performance === 'speed') return Math.max(0.1, base - 0.1)
+        if (merged?.performance === 'quality') return Math.min(1.0, base + 0.05)
         return base
     }
 
     private computeMaxTokens(context?: ChatContext): number {
+        const merged = this.mergeContext(context)
         const base = this.maxTokens
-        if (context?.verbosity === 'concise' || context?.performance === 'speed') return Math.min(base, 500)
-        if (context?.verbosity === 'lengthy' || context?.performance === 'quality') return Math.min(Math.max(base, 800), base)
+        if (merged?.verbosity === 'concise' || merged?.performance === 'speed') return Math.min(base, 500)
+        if (merged?.verbosity === 'lengthy' || merged?.performance === 'quality') return Math.min(Math.max(base, 800), base)
         return base
     }
 
     async generateInterviewResponse(question: string, context?: ChatContext): Promise<string> {
         if (!env.OPENAI_API_KEY) throw new Error('OpenAI not configured')
+        const merged = this.mergeContext(context)
         const userPrompt = `Interview Question: "${question}"\n\nPlease provide a confident, natural, and professional interview response that shows the candidate is fully qualified. Use simple grammar and speak in a realistic tone. Make the example specific and believable, and if possible, include a result or outcome.`
         const resp = await this.client.chat.completions.create({
             model: this.model,
             messages: [
-                { role: 'system', content: this.buildSystemPrompt(context) },
+                { role: 'system', content: this.buildSystemPrompt(merged) },
                 { role: 'user', content: userPrompt },
             ],
-            max_tokens: this.computeMaxTokens(context),
-            temperature: this.computeTemperature(context),
+            max_tokens: this.computeMaxTokens(merged),
+            temperature: this.computeTemperature(merged),
         })
         return resp.choices[0]?.message?.content?.trim() || ''
     }
 
     async detectQuestionAndAnswer(utterance: string, context?: ChatContext): Promise<{ isQuestion: boolean; question: string | null; answer: string | null }> {
         if (!env.OPENAI_API_KEY) throw new Error('OpenAI not configured')
+        const merged = this.mergeContext(context)
         const system = `You analyze a short user utterance and decide if it is a question addressed to an interview assistant. If it is a question, answer it concisely (2-4 sentences) using any provided context. Respond ONLY as minified JSON with keys: isQuestion (boolean), question (string|null), answer (string|null). Do not include any extra text.`
         const resp = await this.client.chat.completions.create({
             model: this.model,
             messages: [
                 { role: 'system', content: system },
-                { role: 'user', content: JSON.stringify({ utterance, context: context || null, schema: { isQuestion: 'boolean', question: 'string|null', answer: 'string|null' } }) },
+                { role: 'user', content: JSON.stringify({ utterance, context: merged || null, schema: { isQuestion: 'boolean', question: 'string|null', answer: 'string|null' } }) },
             ],
             response_format: { type: 'json_object' } as any,
             max_tokens: 800,
@@ -172,6 +195,7 @@ This is a real-time job interview — respond with natural, confident, and detai
 
     private async suggestQuestions(task: 'followup' | 'next', seed: string, context?: ChatContext): Promise<string[]> {
         if (!env.OPENAI_API_KEY) throw new Error('OpenAI not configured')
+        const merged = this.mergeContext(context)
         const system = `You output EXACTLY three interview questions as minified JSON. Respond ONLY with: {"questions":["q1","q2","q3"]} and nothing else.
 Rules:
 - Each item must be a single, clear question ending with a question mark.
@@ -180,7 +204,7 @@ Rules:
         const userPayload = {
             task,
             seed,
-            context: context || null
+            context: merged || null
         }
         const resp = await this.client.chat.completions.create({
             model: this.model,
@@ -273,9 +297,10 @@ Guidelines:
         summary?: string,
     ): AsyncGenerator<string> {
         if (!env.OPENAI_API_KEY) throw new Error('OpenAI not configured')
+        const merged = this.mergeContext(context)
         const userPrompt = `Interview Question: "${question}"`
         const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-            { role: 'system', content: this.buildSystemPrompt(context) },
+            { role: 'system', content: this.buildSystemPrompt(merged) },
         ]
         if (summary && typeof summary === 'string' && summary.trim()) {
             messages.push({ role: 'system', content: `Conversation Summary so far (use for context): ${summary.trim()}` })
@@ -291,8 +316,8 @@ Guidelines:
         const stream = await this.client.chat.completions.create({
             model: this.model,
             messages,
-            max_tokens: this.computeMaxTokens(context),
-            temperature: this.computeTemperature(context),
+            max_tokens: this.computeMaxTokens(merged),
+            temperature: this.computeTemperature(merged),
             stream: true,
         }) as any
         for await (const part of stream) {
@@ -309,6 +334,7 @@ Guidelines:
         context?: ChatContext,
     ): Promise<string> {
         if (!env.OPENAI_API_KEY) throw new Error('OpenAI not configured')
+        const merged = this.mergeContext(context)
         const system = `You are a note-taker that creates compact rolling summaries of an interview coaching conversation.
 Rules:
 - Output 8-12 concise bullet-like sentences in plain text (no bullets), <= 1800 characters total.

@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express'
 import { z } from 'zod'
 import { openaiService } from '../services/openai.service'
+import { sessionCache } from '../services/sessionCache'
 import type { Request as ExpressRequest } from 'express'
 
 const generateSchema = z.object({
@@ -12,11 +13,22 @@ const generateSchema = z.object({
             additionalContext: z.string().optional(),
         })
         .optional(),
+    sessionId: z.string().optional(),
 })
 
 export async function generate(req: Request, res: Response, next: NextFunction) {
     try {
-        const { question, context } = generateSchema.parse(req.body)
+        const { question, context, sessionId } = generateSchema.parse(req.body)
+        if (sessionId) {
+            const s = sessionCache.get(sessionId)
+            if (s) {
+                openaiService.setDefaultContext({
+                    resume: s.resume,
+                    jobDescription: s.jobDescription,
+                    additionalContext: s.context,
+                })
+            }
+        }
         const text = await openaiService.generateInterviewResponse(question, context)
         res.json({ ok: true, text })
     } catch (err) {
@@ -33,11 +45,22 @@ const detectSchema = z.object({
             additionalContext: z.string().optional(),
         })
         .optional(),
+    sessionId: z.string().optional(),
 })
 
 export async function detect(req: Request, res: Response, next: NextFunction) {
     try {
-        const { utterance, context } = detectSchema.parse(req.body)
+        const { utterance, context, sessionId } = detectSchema.parse(req.body)
+        if (sessionId) {
+            const s = sessionCache.get(sessionId)
+            if (s) {
+                openaiService.setDefaultContext({
+                    resume: s.resume,
+                    jobDescription: s.jobDescription,
+                    additionalContext: s.context,
+                })
+            }
+        }
         const result = await openaiService.detectQuestionAndAnswer(utterance, context)
         res.json({ ok: true, ...result })
     } catch (err) {

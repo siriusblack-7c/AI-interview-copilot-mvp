@@ -1,14 +1,14 @@
 import { useState, useCallback, useRef, useEffect, lazy, Suspense } from 'react';
 // const ResponseGenerator = lazy(() => import('./ResponseGenerator'));
 const TextToSpeech = lazy(() => import('./TextToSpeech'));
-const DocumentManager = lazy(() => import('./DocumentManager'));
 import { useConversation } from '../hooks/useConversation';
 import { useInterviewState } from '../context/InterviewStateContext';
 import type { TextToSpeechRef } from '../types/speech';
 const LiveTranscript = lazy(() => import('./LiveTranscript'));
 import useDeepgramLive from '../hooks/useDeepgramLive';
 import useTranscriptBuffer from '../hooks/useTranscriptBuffer';
-import { getSocket } from '../services/backend';
+import { getSocket, fetchSession } from '../services/backend';
+import { completeSession, getNextMockQuestion } from '../services/backend';
 import createAudioAttribution from '../utils/audioAttribution';
 // import ConversationHistory from './ConversationHistory';
 const ScreenSharePreview = lazy(() => import('./ScreenSharePreview'));
@@ -24,21 +24,61 @@ export default function InterviewDashboard() {
     const [resumeText, setResumeText] = useState('');
     const [jobDescription, setJobDescription] = useState('');
     const [additionalContext, setAdditionalContext] = useState('');
+    const [sessionId, setSessionId] = useState<string | null>(null);
+    const [sessionType, setSessionType] = useState<'live' | 'mock' | 'coding'>('live');
 
     const textToSpeechRef = useRef<TextToSpeechRef>(null);
 
     // Custom hooks
     const { addQuestion, addResponse, conversations, clearHistory } = useConversation();
-    const { isSharing, systemStream } = useInterviewState();
+    const { isSharing, systemStream, stopShare } = useInterviewState();
 
     // Decouple system-audio transcription from mic listening: system stays active while sharing
 
     // If system audio sharing is active, mute TTS to avoid capturing our own AI response
     useEffect(() => {
+        // Read sessionId from URL query param
+        try {
+            const url = new URL(window.location.href);
+            const sid = url.searchParams.get('sessionId');
+            if (sid) setSessionId(sid);
+        } catch { }
+    }, []);
+
+    useEffect(() => {
+        // Fetch session context and set into local state
+        if (!sessionId) return;
+        let cancelled = false;
+        (async () => {
+            try {
+                const data = await fetchSession(sessionId);
+                if (cancelled) return;
+                setResumeText(data.resume || '');
+                setJobDescription(data.jobDescription || '');
+                setAdditionalContext(data.context || '');
+                try {
+                    const t = (data as any).type || 'live'
+                    setSessionType(t)
+                    try { (window as any).__MOCK_INTERVIEW__ = t === 'mock' } catch { }
+                } catch { setSessionType('live') }
+            } catch { }
+        })();
+        return () => { cancelled = true };
+    }, [sessionId]);
+
+    useEffect(() => {
         if (isSharing && textToSpeechRef.current) {
             textToSpeechRef.current.setMuted(true);
         }
     }, [isSharing]);
+
+    // Reflect mock mode into a global flag and ensure screenshare is off
+    useEffect(() => {
+        try { (window as any).__MOCK_INTERVIEW__ = sessionType === 'mock' } catch { }
+        if (sessionType === 'mock') {
+            try { if (isSharing) stopShare(); } catch { }
+        }
+    }, [sessionType, isSharing, stopShare]);
 
     // ScreenSharePreview binds its own video element using context
 
@@ -48,6 +88,7 @@ export default function InterviewDashboard() {
     const lastThemFinalRef = useRef<{ text: string; at: number } | null>(null);
     const lastResponseRef = useRef<string>('');
     const lastMicSnapshotRef = useRef<string | null>(null);
+    const mockStartedRef = useRef<boolean>(false);
     const normalize = (s: string) => s.replace(/\s+/g, ' ').trim().toLowerCase();
     // Middleware for consistent speaker attribution
     const attribution = createAudioAttribution({
@@ -116,23 +157,46 @@ export default function InterviewDashboard() {
                 }
                 upsertTranscript({ speaker, text: micLive.text, isFinal: micLive.isFinal });
                 if (micLive.isFinal) {
-                    try {
-                        const socket = getSocket();
-                        socket.emit('openai:detect:utterance', {
-                            utterance: micLive.text,
-                            source: 'speech',
-                            context: {
-                                resume: resumeText || undefined,
-                                jobDescription: jobDescription || undefined,
-                                additionalContext: additionalContext || undefined,
-                            },
-                        });
-                    } catch { }
+                    if (sessionType === 'mock') {
+                        // In mock mode, use local speech-to-text only and send directly to OpenAI as a question
+                        const utterance = micLive.text;
+                        setCurrentQuestion(utterance);
+                        addQuestion(utterance);
+                        try { upsertTranscript({ speaker: 'them', text: utterance, isFinal: true }) } catch { }
+                    } else {
+                        try {
+                            const socket = getSocket();
+                            socket.emit('openai:detect:utterance', {
+                                utterance: micLive.text,
+                                source: 'speech',
+                                sessionId: sessionId || undefined,
+                                context: undefined,
+                            });
+                        } catch { }
+                    }
                 }
             } catch { }
         }, 100);
         return () => { try { window.clearInterval(timer); } catch { } };
-    }, [isSharing, attribution, upsertTranscript, resumeText, jobDescription, additionalContext]);
+    }, [isSharing, attribution, upsertTranscript, sessionId, sessionType]);
+
+    // Auto-start mock interview by fetching the first interviewer question
+    useEffect(() => {
+        if (sessionType !== 'mock') { mockStartedRef.current = false; return }
+        if (!sessionId) return
+        if (mockStartedRef.current) return
+        mockStartedRef.current = true
+            ; (async () => {
+                try {
+                    const q = await getNextMockQuestion(sessionId, currentResponse || undefined)
+                    if (q) {
+                        setCurrentQuestion(q)
+                        addQuestion(q)
+                        try { upsertTranscript({ speaker: 'them', text: q, isFinal: true }) } catch { }
+                    }
+                } catch { }
+            })()
+    }, [sessionType, sessionId])
 
     const handleResponseGenerated = useCallback((response: string) => {
         const trimmed = (response || '').trim();
@@ -158,17 +222,7 @@ export default function InterviewDashboard() {
     // Voice input removed; retain stop control for TTS only
     // no external usage
 
-    const handleResumeUpdate = useCallback((text: string) => {
-        setResumeText(text);
-    }, []);
-
-    const handleJobDescriptionUpdate = useCallback((text: string) => {
-        setJobDescription(text);
-    }, []);
-
-    const handleAdditionalContextUpdate = useCallback((text: string) => {
-        setAdditionalContext(text);
-    }, []);
+    // Local setters reserved for future programmatic updates
 
     // Resizable split between left and right columns (desktop only)
     const containerRef = useRef<HTMLDivElement | null>(null);
@@ -227,9 +281,9 @@ export default function InterviewDashboard() {
     }, []);
 
     return (
-        <div className="min-h-screen bg-[#1a1a1a] from-blue-50 via-white to-purple-50">
+        <div className="min-h-screen bg-[#1a1a1a] h-full max-h-[100vh] overflow-hidden from-blue-50 via-white to-purple-50">
             {/* Main Content */}
-            <div className="w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="w-full max-h-full overflow-hidden mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <div ref={containerRef} className="flex flex-col lg:flex-row gap-8 lg:gap-0">
                     {/* Left Column */}
                     <div
@@ -238,7 +292,49 @@ export default function InterviewDashboard() {
                     >
                         {/* Screen Share Preview (shown on top of voice input box while sharing) */}
                         <Suspense fallback={<div className="h-64 bg-[#2a2a2a] rounded-md animate-pulse" />}>
-                            <ScreenSharePreview />
+                            {/* Mode Toggle */}
+                            <div className="w-full flex items-center justify-end gap-3">
+                                <div className="text-xs text-gray-300">Mode</div>
+                                <div className="inline-flex rounded-md overflow-hidden border border-gray-700">
+                                    <button
+                                        className={`px-3 py-1 text-xs ${sessionType === 'live' ? 'bg-green-600 text-white' : 'bg-[#2a2a2a] text-gray-300 hover:bg-[#3a3a3a]'}`}
+                                        onClick={() => setSessionType('live')}
+                                        aria-pressed={sessionType === 'live'}
+                                    >
+                                        Live
+                                    </button>
+                                    <button
+                                        className={`px-3 py-1 text-xs ${sessionType === 'mock' ? 'bg-purple-600 text-white' : 'bg-[#2a2a2a] text-gray-300 hover:bg-[#3a3a3a]'}`}
+                                        onClick={() => setSessionType('mock')}
+                                        aria-pressed={sessionType === 'mock'}
+                                    >
+                                        Mock
+                                    </button>
+                                </div>
+                            </div>
+                            <ScreenSharePreview
+                                isMock={sessionType === 'mock'}
+                                onLeaveCall={async () => {
+                                    try {
+                                        const history: { role: 'user' | 'interviewer'; content: string }[] = conversations.map((c) => {
+                                            if (c.type === 'question') return { role: 'interviewer', content: c.content } as const
+                                            if (c.type === 'response') return { role: 'user', content: c.content } as const
+                                            return null as any
+                                        }).filter(Boolean) as any
+                                        await completeSession({ sessionId: sessionId || '', history })
+                                    } catch { }
+                                }}
+                                onEndCall={async () => {
+                                    try {
+                                        const history: { role: 'user' | 'interviewer'; content: string }[] = conversations.map((c) => {
+                                            if (c.type === 'question') return { role: 'interviewer', content: c.content } as const
+                                            if (c.type === 'response') return { role: 'user', content: c.content } as const
+                                            return null as any
+                                        }).filter(Boolean) as any
+                                        await completeSession({ sessionId: sessionId || '', history })
+                                    } catch { }
+                                }}
+                            />
                         </Suspense>
 
                         {/* Voice input panel removed */}
@@ -275,7 +371,6 @@ export default function InterviewDashboard() {
                         className="space-y-6 pl-1 h-[calc(100vh-45px)] flex flex-col justify-between"
                         style={isDesktop ? { flex: `1 1 ${100 - splitPercent}%` } : { width: '100%' }}
                     >
-                        {/* Response Generator removed here to avoid duplicate; now rendered within InterviewCopilotPanel */}
                         {/* Copilot Panel: Conversation + Response Generator */}
                         <Suspense fallback={<div className="min-h-[420px] h-full bg-[#2a2a2a] rounded-md animate-pulse" />}>
                             <InterviewCopilotPanel
@@ -286,6 +381,7 @@ export default function InterviewDashboard() {
                                 resumeText={resumeText}
                                 jobDescription={jobDescription}
                                 additionalContext={additionalContext}
+                                sessionId={sessionId || undefined}
                                 onMuteToggle={handleMuteToggle}
                                 isMuted={isMuted}
                                 onManualQuestionSubmit={(q) => {
@@ -296,20 +392,29 @@ export default function InterviewDashboard() {
                                 }}
                             />
                         </Suspense>
+                        {sessionType === 'mock' && (
+                            <div className="flex items-center gap-2">
+                                <button
+                                    className="bg-purple-600 hover:bg-purple-700 text-white text-xs px-3 py-2 rounded-md"
+                                    onClick={async () => {
+                                        try {
+                                            const q = await getNextMockQuestion(sessionId || '', currentResponse || undefined)
+                                            if (q) {
+                                                setCurrentQuestion(q)
+                                                addQuestion(q)
+                                                try { upsertTranscript({ speaker: 'them', text: q, isFinal: true }) } catch { }
+                                            }
+                                        } catch { }
+                                    }}
+                                >
+                                    {currentQuestion ? 'Next Question' : 'Start Mock Interview'}
+                                </button>
+                            </div>
+                        )}
                         {/* OpenAI Configuration removed */}
                     </div>
                 </div>
-                {/* Document Manager */}
-                <Suspense fallback={<div className="h-40 bg-[#2a2a2a] rounded-md animate-pulse mt-4 pt-4" />}>
-                    <DocumentManager
-                        onResumeUpdate={handleResumeUpdate}
-                        onJobDescriptionUpdate={handleJobDescriptionUpdate}
-                        onAdditionalContextUpdate={handleAdditionalContextUpdate}
-                        resumeText={resumeText}
-                        jobDescription={jobDescription}
-                        additionalContext={additionalContext}
-                    />
-                </Suspense>
+                {/* Document Manager removed: session-driven context only */}
             </div>
         </div>
     );

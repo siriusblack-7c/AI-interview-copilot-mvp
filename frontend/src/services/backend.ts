@@ -33,4 +33,34 @@ export function getApiBaseUrl(): string {
     return API_BASE_URL
 }
 
+export async function fetchSession(sessionId: string): Promise<{ sessionId: string; resume: string; jobDescription: string; context: string }> {
+    const resp = await api.get('/api/session', { params: { sessionId } })
+    const data = resp.data?.data || {}
+    return {
+        sessionId: String(data.sessionId || ''),
+        resume: String(data.resume ?? ''),
+        jobDescription: String(data.jobDescription ?? ''),
+        context: String(data.context ?? ''),
+    }
+}
+
+export async function completeSession(params: {
+    sessionId: string
+    history: { role: 'user' | 'interviewer'; content: string }[]
+    stats?: {
+        totalTranscriptions?: number
+        totalAIResponses?: number
+        totalTokensUsed?: number
+        averageTranscriptionTime?: number
+        averageResponseTime?: number
+    }
+}): Promise<void> {
+    await api.post('/api/session/complete', params)
+}
+
+export async function getNextMockQuestion(sessionId: string, lastAnswer?: string): Promise<string> {
+    const resp = await api.post('/api/session/mock/next-question', { sessionId, lastAnswer })
+    return String(resp.data?.question || '')
+}
+
 
