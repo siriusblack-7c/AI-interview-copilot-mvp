@@ -2,7 +2,6 @@ import { useState, useCallback, useRef, useEffect, lazy, Suspense } from 'react'
 // const ResponseGenerator = lazy(() => import('./ResponseGenerator'));
 const TextToSpeech = lazy(() => import('./TextToSpeech'));
 const DocumentManager = lazy(() => import('./DocumentManager'));
-import Header from './Header';
 import { useConversation } from '../hooks/useConversation';
 import { useInterviewState } from '../context/InterviewStateContext';
 import type { TextToSpeechRef } from '../types/speech';
@@ -171,16 +170,72 @@ export default function InterviewDashboard() {
         setAdditionalContext(text);
     }, []);
 
+    // Resizable split between left and right columns (desktop only)
+    const containerRef = useRef<HTMLDivElement | null>(null);
+    const draggingRef = useRef<boolean>(false);
+    const [isDesktop, setIsDesktop] = useState<boolean>(() => {
+        try { return window.matchMedia('(min-width: 1024px)').matches } catch { return false }
+    });
+    const [splitPercent, setSplitPercent] = useState<number>(() => {
+        try {
+            const v = Number(localStorage.getItem('layout:splitPercent'));
+            if (Number.isFinite(v) && v > 20 && v < 80) return v;
+        } catch { }
+        return 50;
+    });
+
+    useEffect(() => {
+        let mql: MediaQueryList | null = null;
+        try {
+            mql = window.matchMedia('(min-width: 1024px)');
+            const onChange = () => setIsDesktop(mql ? mql.matches : false);
+            onChange();
+            mql.addEventListener('change', onChange);
+            return () => { try { mql && mql.removeEventListener('change', onChange) } catch { } };
+        } catch { return }
+    }, []);
+
+    useEffect(() => {
+        const onMove = (e: MouseEvent) => {
+            if (!draggingRef.current) return;
+            const el = containerRef.current;
+            if (!el) return;
+            const rect = el.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const pct = (x / rect.width) * 100;
+            const clamped = Math.max(20, Math.min(80, pct));
+            setSplitPercent(clamped);
+        };
+        const onUp = () => {
+            if (!draggingRef.current) return;
+            draggingRef.current = false;
+            try { document.body.style.userSelect = ''; } catch { }
+            try { localStorage.setItem('layout:splitPercent', String(splitPercent)) } catch { }
+        };
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+        return () => {
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup', onUp);
+        };
+    }, [splitPercent]);
+
+    const onDragStart = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+        draggingRef.current = true;
+        try { document.body.style.userSelect = 'none' } catch { }
+        e.preventDefault();
+    }, []);
+
     return (
         <div className="min-h-screen bg-[#1a1a1a] from-blue-50 via-white to-purple-50">
-            {/* Header */}
-            <Header />
-
             {/* Main Content */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <div ref={containerRef} className="flex flex-col lg:flex-row gap-8 lg:gap-0">
                     {/* Left Column */}
-                    <div className="space-y-6">
+                    <div
+                        className="space-y-6 pr-1 min-w-[350px] h-[calc(100vh-45px)] flex flex-col justify-between"
+                        style={isDesktop ? { flex: `0 0 ${splitPercent}%` } : { width: '100%' }}
+                    >
                         {/* Screen Share Preview (shown on top of voice input box while sharing) */}
                         <Suspense fallback={<div className="h-64 bg-[#2a2a2a] rounded-md animate-pulse" />}>
                             <ScreenSharePreview />
@@ -200,20 +255,26 @@ export default function InterviewDashboard() {
                                 onStateChange={handleSpeechStateChange}
                             />
                         </Suspense>
-                        {/* Document Manager */}
-                        <Suspense fallback={<div className="h-40 bg-[#2a2a2a] rounded-md animate-pulse" />}>
-                            <DocumentManager
-                                onResumeUpdate={handleResumeUpdate}
-                                onJobDescriptionUpdate={handleJobDescriptionUpdate}
-                                onAdditionalContextUpdate={handleAdditionalContextUpdate}
-                                resumeText={resumeText}
-                                jobDescription={jobDescription}
-                                additionalContext={additionalContext}
-                            />
-                        </Suspense>
+
                     </div>
+
+                    {/* Drag Handle (desktop only) */}
+                    {isDesktop && (
+                        <div
+                            className="hidden lg:block w-2 cursor-col-resize"
+                            style={{ background: 'transparent' }}
+                            onMouseDown={onDragStart}
+                            role="separator"
+                            aria-orientation="vertical"
+                            aria-label="Resize panels"
+                        />
+                    )}
+
                     {/* Right Column */}
-                    <div className="space-y-6">
+                    <div
+                        className="space-y-6 pl-1 h-[calc(100vh-45px)]"
+                        style={isDesktop ? { flex: `1 1 ${100 - splitPercent}%` } : { width: '100%' }}
+                    >
                         {/* Response Generator removed here to avoid duplicate; now rendered within InterviewCopilotPanel */}
                         {/* Copilot Panel: Conversation + Response Generator */}
                         <Suspense fallback={<div className="min-h-[420px] bg-[#2a2a2a] rounded-md animate-pulse" />}>
@@ -238,16 +299,17 @@ export default function InterviewDashboard() {
                         {/* OpenAI Configuration removed */}
                     </div>
                 </div>
-            </div>
-
-            {/* Footer */}
-            <div className="bg-[#1a1a1a] border-t border-gray-600 mt-12">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-                    <div className="flex items-center justify-between text-sm text-gray-400">
-                        <p>AI Interview Copilot</p>
-                        <p>RoboApply</p>
-                    </div>
-                </div>
+                {/* Document Manager */}
+                <Suspense fallback={<div className="h-40 bg-[#2a2a2a] rounded-md animate-pulse mt-4 pt-4" />}>
+                    <DocumentManager
+                        onResumeUpdate={handleResumeUpdate}
+                        onJobDescriptionUpdate={handleJobDescriptionUpdate}
+                        onAdditionalContextUpdate={handleAdditionalContextUpdate}
+                        resumeText={resumeText}
+                        jobDescription={jobDescription}
+                        additionalContext={additionalContext}
+                    />
+                </Suspense>
             </div>
         </div>
     );

@@ -55,7 +55,7 @@ export default function InterviewCopilotPanel({
     })
 
     return (
-        <div className="bg-[#2c2c2c] rounded-md shadow-lg border border-gray-700 p-4 flex flex-col h-[calc(100vh-120px)]">
+        <div className="bg-[#2c2c2c] rounded-md shadow-lg border border-gray-700 p-4 flex flex-col h-full">
             <div className="flex items-center justify-between mb-2">
                 <div className="text-xs text-gray-200">Interview Copilot</div>
                 <div className="flex items-center gap-4">
@@ -91,65 +91,70 @@ export default function InterviewCopilotPanel({
                     </span>
                 )}
             </div>
-
-            <div
-                ref={(el) => { parentRef.current = el as HTMLDivElement; scrollRef.current = el as HTMLDivElement; }}
-                className="flex-1 min-h-[250px] bg-[#303030] border border-gray-700 rounded-md p-6 overflow-y-auto mb-2"
-            >
-                {items.length === 0 ? (
-                    <div className="h-full w-full flex items-center justify-center text-sm text-gray-300 text-center">
-                        The Interview Copilot is ready and waiting for interviewer's question
-                    </div>
-                ) : (
-                    <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative' }}>
-                        {rowVirtualizer.getVirtualItems().map((vi) => {
-                            const item = items[vi.index]
-                            return (
-                                <div
-                                    key={item.id}
-                                    ref={rowVirtualizer.measureElement}
-                                    data-index={vi.index}
-                                    style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${vi.start}px)` }}
-                                    className="text-sm text-gray-200 py-1"
-                                >
-                                    <span className={`px-2 py-0.5 rounded-full text-xs mr-2 ${item.type === 'question' ? 'bg-blue-600 text-white' : item.type === 'response' ? 'bg-purple-600 text-white' : 'bg-yellow-600 text-white'}`}>
-                                        {item.type === 'question' ? 'Q' : item.type === 'response' ? 'AI' : 'Live'}
-                                    </span>
-                                    <span className="align-middle whitespace-pre-wrap break-words">{item.content}</span>
+            <div className="flex flex-row gap-2 h-[calc(100vh-140px)]">
+                <div className="flex-1">
+                    <div
+                        ref={(el) => { parentRef.current = el as HTMLDivElement; scrollRef.current = el as HTMLDivElement; }}
+                        className="flex-1 min-h-[calc(100vh-150px)] max-h-full bg-[#303030] border border-gray-700 rounded-md p-6 overflow-y-auto mb-2"
+                    >
+                        {items.length === 0 ? (
+                            <div className="h-full w-full flex items-center justify-center text-sm text-gray-300 text-center">
+                                The Interview Copilot is ready and waiting for interviewer's question
+                            </div>
+                        ) : (
+                            <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative' }}>
+                                {rowVirtualizer.getVirtualItems().map((vi) => {
+                                    const item = items[vi.index]
+                                    return (
+                                        <div
+                                            key={item.id}
+                                            ref={rowVirtualizer.measureElement}
+                                            data-index={vi.index}
+                                            style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${vi.start}px)` }}
+                                            className="text-sm text-gray-200 py-1"
+                                        >
+                                            <span className={`px-2 py-0.5 rounded-full text-xs mr-2 ${item.type === 'question' ? 'bg-blue-600 text-white' : item.type === 'response' ? 'bg-purple-600 text-white' : 'bg-yellow-600 text-white'}`}>
+                                                {item.type === 'question' ? 'Q' : item.type === 'response' ? 'AI' : 'Live'}
+                                            </span>
+                                            <span className="align-middle whitespace-pre-wrap break-words">{item.content}</span>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        )}
+                        {isGenerating && (
+                            <div className="flex items-center gap-3 p-4">
+                                <div className="flex space-x-1">
+                                    <div className="w-2 h-2 bg-purple-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                                    <div className="w-2 h-2 bg-purple-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                                    <div className="w-2 h-2 bg-purple-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
                                 </div>
-                            )
-                        })}
+                            </div>
+                        )}
+
                     </div>
-                )}
-                {isGenerating && (
-                    <div className="flex items-center gap-3 p-4">
-                        <div className="flex space-x-1">
-                            <div className="w-2 h-2 bg-purple-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                            <div className="w-2 h-2 bg-purple-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                            <div className="w-2 h-2 bg-purple-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                        </div>
-                    </div>
-                )}
-
-            </div>
-
-            <div className="mb-2 text-[10px] text-gray-400 uppercase tracking-wide">AI Response Generator</div>
-            <ResponseGenerator
-                question={question}
-                onResponseGenerated={onResponseGenerated}
-                resumeText={resumeText}
-                jobDescription={jobDescription}
-                additionalContext={additionalContext}
-                onMuteToggle={onMuteToggle}
-                isMuted={isMuted}
-                onManualQuestionSubmit={onManualQuestionSubmit}
-            />
-
-            {items.length > 0 && (
-                <div className="mt-4 flex justify-end">
-                    <button onClick={onClearHistory} className="text-xs text-red-500 hover:text-red-400">Clear history</button>
                 </div>
-            )}
+                <div className="max-w-[250px]">
+                    {items.length > 0 && (
+                        <div className="mt-4 flex justify-end">
+                            <button onClick={onClearHistory} className="text-xs text-red-500 hover:text-red-400">Clear history</button>
+                        </div>
+                    )}
+                    <div className="mb-2 text-[10px] text-gray-400 uppercase tracking-wide">AI Response Generator</div>
+
+                    <ResponseGenerator
+                        question={question}
+                        onResponseGenerated={onResponseGenerated}
+                        resumeText={resumeText}
+                        jobDescription={jobDescription}
+                        additionalContext={additionalContext}
+                        onMuteToggle={onMuteToggle}
+                        isMuted={isMuted}
+                        onManualQuestionSubmit={onManualQuestionSubmit}
+                    />
+
+                </div>
+            </div>
         </div>
     )
 }
