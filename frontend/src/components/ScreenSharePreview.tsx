@@ -54,7 +54,7 @@ export default function ScreenSharePreview() {
                     <div className="relative">
                         <video
                             ref={shareVideoRef}
-                            className="w-full max-h-64 object-contain bg-black"
+                            className="w-full object-contain bg-black"
                             autoPlay
                             muted
                             playsInline
@@ -68,7 +68,7 @@ export default function ScreenSharePreview() {
                     </div>
                 </div>
             ) : (
-                <div className="bg-[#484848] border border-gray-700 rounded-md overflow-hidden w-full h-[250px] flex flex-col items-center justify-center">
+                <div className="bg-[#484848] border border-gray-700 h-[200px] rounded-md overflow-hidden w-full flex flex-col items-center justify-center">
                     <div className="px-3 py-2 text-xs text-gray-300">
                         Select your interview meeting room
                     </div>

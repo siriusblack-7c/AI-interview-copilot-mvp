@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle } from 'lucide-react';
 import openaiService from '../services/openai';
 import { useInterviewState } from '../context/InterviewStateContext';
 
@@ -28,7 +27,6 @@ export default function ResponseGenerator({
 }: ResponseGeneratorProps) {
     const { isListening, stopListening, startListening, setSystemListening, setGenerating, settings, isSharing } = useInterviewState();
     // const [currentResponse, setCurrentResponse] = useState('');
-    const [error, setError] = useState<string | null>(null);
     const [typedQuestion, setTypedQuestion] = useState('');
     const pausedByTypingRef = useRef(false);
     const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -51,9 +49,9 @@ export default function ResponseGenerator({
 
     // Default suggestions to show when interview starts
     const DEFAULT_SUGGESTIONS = [
-        'Tell me about your self',
-        'Why do you want to leave your current role',
-        'Tell me about your day to day',
+        'Tell me about your self.',
+        'Why do you want to leave your current role?',
+        'Tell me about your day to day.',
     ];
 
     // When interview starts (sharing begins), pre-populate suggested questions if none exist yet
@@ -66,7 +64,6 @@ export default function ResponseGenerator({
     const generateResponse = async (incoming: string): Promise<string> => {
         console.log('🔧 generateResponse (stream) called with:', incoming);
         // indicate generating via local UI state or external container if desired
-        setError(null);
         // setCurrentResponse('');
         responseTextRef.current = '';
 
@@ -86,7 +83,7 @@ export default function ResponseGenerator({
                 performance: settings.performance,
             };
 
-            const donePromise = new Promise<string>((resolve) => {
+            const donePromise = new Promise<string>((resolve, reject) => {
                 openaiService
                     .streamAnswer({
                         question: incoming,
@@ -99,17 +96,17 @@ export default function ResponseGenerator({
                         onDone: () => {
                             resolve(responseTextRef.current);
                         },
-                        onError: (msg) => {
-                            setError(msg);
-                            resolve('');
+                        onError: (e) => {
+                            console.error('Error generating response:', e);
+                            reject(e);
                         },
                     })
                     .then((cleanup) => {
                         streamCleanupRef.current = cleanup;
                     })
                     .catch((e) => {
-                        setError(e?.message || 'stream error');
-                        resolve('');
+                        console.error('Error generating response:', e);
+                        reject(e);
                     });
             });
 
@@ -117,7 +114,6 @@ export default function ResponseGenerator({
             onResponseGenerated(finalText);
             return finalText;
         } catch (error: any) {
-            setError(error.message);
             // setCurrentResponse('');
             onResponseGenerated('');
             return '';
@@ -170,7 +166,7 @@ export default function ResponseGenerator({
     // NOTE: Clear action is not exposed in this minimal UI
 
     return (
-        <div className="bg-[#2c2c2c] rounded-md flex flex-col justify-between h-[calc(100vh-200px)]">
+        <div className="bg-[#2c2c2c] rounded-md flex flex-col justify-between h-full">
             {/* Suggested questions */}
             <div>
                 {suggestions.length > 0 && (
@@ -195,7 +191,6 @@ export default function ResponseGenerator({
                 )}
             </div>
             <div>
-
                 <div className="rounded-lg mt-2">
                     <textarea
                         value={typedQuestion}

@@ -233,7 +233,7 @@ export default function InterviewDashboard() {
                 <div ref={containerRef} className="flex flex-col lg:flex-row gap-8 lg:gap-0">
                     {/* Left Column */}
                     <div
-                        className="space-y-6 pr-1 min-w-[350px] h-[calc(100vh-45px)] flex flex-col justify-between"
+                        className="space-y-6 pr-1 min-w-[350px] max-w-[700px] h-[calc(100vh-45px)] flex flex-col justify-between"
                         style={isDesktop ? { flex: `0 0 ${splitPercent}%` } : { width: '100%' }}
                     >
                         {/* Screen Share Preview (shown on top of voice input box while sharing) */}
@@ -272,12 +272,12 @@ export default function InterviewDashboard() {
 
                     {/* Right Column */}
                     <div
-                        className="space-y-6 pl-1 h-[calc(100vh-45px)]"
+                        className="space-y-6 pl-1 h-[calc(100vh-45px)] flex flex-col justify-between"
                         style={isDesktop ? { flex: `1 1 ${100 - splitPercent}%` } : { width: '100%' }}
                     >
                         {/* Response Generator removed here to avoid duplicate; now rendered within InterviewCopilotPanel */}
                         {/* Copilot Panel: Conversation + Response Generator */}
-                        <Suspense fallback={<div className="min-h-[420px] bg-[#2a2a2a] rounded-md animate-pulse" />}>
+                        <Suspense fallback={<div className="min-h-[420px] h-full bg-[#2a2a2a] rounded-md animate-pulse" />}>
                             <InterviewCopilotPanel
                                 conversations={conversations}
                                 onClearHistory={clearHistory}

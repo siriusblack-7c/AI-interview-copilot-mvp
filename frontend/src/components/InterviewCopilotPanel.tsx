@@ -55,42 +55,44 @@ export default function InterviewCopilotPanel({
     })
 
     return (
-        <div className="bg-[#2c2c2c] rounded-md shadow-lg border border-gray-700 p-4 flex flex-col h-full">
-            <div className="flex items-center justify-between mb-2">
-                <div className="text-xs text-gray-200">Interview Copilot</div>
-                <div className="flex items-center gap-4">
-                    <button
-                        className={`w-8 h-8 rounded-full flex items-center justify-center ${!isMuted ? 'bg-green-600 text-white' : 'bg-[#3a3a3a] text-gray-300'}`}
-                        title={!isMuted ? 'AI Speech On (click to mute)' : 'AI Speech Muted (click to unmute)'}
-                        onClick={() => onMuteToggle?.(!isMuted)}
-                    >
-                        {isMuted ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-                    </button>
-                    <label className="flex items-center gap-2 text-xs text-gray-300 select-none">
-                        <span>Auto Scroll</span>
-                        <input
-                            type="checkbox"
-                            checked={autoScroll}
-                            onChange={(e) => setAutoScroll(e.target.checked)}
-                            className="accent-purple-600 cursor-pointer"
-                        />
-                    </label>
+        <div className="bg-[#2c2c2c] rounded-md shadow-lg border border-gray-700 p-4 flex flex-col justify-between h-full">
+            <div className="flex flex-col mb-2">
+                <div className="flex flex-row justify-between gap-2">
+                    <div className="text-xs text-gray-200">Interview Copilot</div>
+                    <div className="flex items-center gap-4">
+                        <button
+                            className={`w-8 h-8 rounded-full flex items-center justify-center ${!isMuted ? 'bg-green-600 text-white' : 'bg-[#3a3a3a] text-gray-300'}`}
+                            title={!isMuted ? 'AI Speech On (click to mute)' : 'AI Speech Muted (click to unmute)'}
+                            onClick={() => onMuteToggle?.(!isMuted)}
+                        >
+                            {isMuted ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                        </button>
+                        <label className="flex items-center gap-2 text-xs text-gray-300 select-none">
+                            <span>Auto Scroll</span>
+                            <input
+                                type="checkbox"
+                                checked={autoScroll}
+                                onChange={(e) => setAutoScroll(e.target.checked)}
+                                className="accent-purple-600 cursor-pointer"
+                            />
+                        </label>
+                    </div>
+                </div>
+                <div className="mb-2">
+                    {isGenerating ? (
+                        <span className="inline-flex items-center gap-2 text-xs text-purple-300">
+                            <span className="inline-block w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
+                            AI is thinking...
+                        </span>
+                    ) : (
+                        <span className="inline-flex items-center gap-2 text-xs text-gray-300">
+                            <span className="inline-block w-2 h-2 rounded-full bg-green-500" />
+                            Ready
+                        </span>
+                    )}
                 </div>
             </div>
 
-            <div className="mb-2">
-                {isGenerating ? (
-                    <span className="inline-flex items-center gap-2 text-xs text-purple-300">
-                        <span className="inline-block w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
-                        AI is thinking...
-                    </span>
-                ) : (
-                    <span className="inline-flex items-center gap-2 text-xs text-gray-300">
-                        <span className="inline-block w-2 h-2 rounded-full bg-green-500" />
-                        Ready
-                    </span>
-                )}
-            </div>
             <div className="flex flex-row gap-2 h-[calc(100vh-140px)]">
                 <div className="flex-1">
                     <div
@@ -134,7 +136,7 @@ export default function InterviewCopilotPanel({
 
                     </div>
                 </div>
-                <div className="max-w-[250px]">
+                <div className="max-w-[250px] h-full flex flex-col justify-between">
                     {items.length > 0 && (
                         <div className="mt-4 flex justify-end">
                             <button onClick={onClearHistory} className="text-xs text-red-500 hover:text-red-400">Clear history</button>
