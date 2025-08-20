@@ -172,7 +172,7 @@ export default function ResponseGenerator({
                 {suggestions.length > 0 && (
                     <div className="mt-4">
                         <div className="text-xs text-gray-400 mb-2">Suggestions (click to ask):</div>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-2 w-full">
                             {suggestions.map((q, idx) => (
                                 <button
                                     key={idx}
@@ -180,7 +180,7 @@ export default function ResponseGenerator({
                                         setTypedQuestion(q);
                                         if (onManualQuestionSubmit) onManualQuestionSubmit(q);
                                     }}
-                                    className="text-xs px-3 py-1 rounded-full bg-[#3a3a3a] text-gray-200 hover:bg-[#4a4a4a]"
+                                    className="text-xs px-3 py-1 w-full text-left rounded-full bg-[#3a3a3a] text-gray-200 hover:bg-[#4a4a4a]"
                                     title="Ask this question"
                                 >
                                     {q}

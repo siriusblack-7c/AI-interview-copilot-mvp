@@ -266,15 +266,31 @@ Guidelines:
         return resp.choices[0]?.message?.content?.trim() || ''
     }
 
-    async *streamChat(question: string, context?: ChatContext): AsyncGenerator<string> {
+    async *streamChat(
+        question: string,
+        context?: ChatContext,
+        history?: { role: 'user' | 'interviewer'; content: string }[],
+        summary?: string,
+    ): AsyncGenerator<string> {
         if (!env.OPENAI_API_KEY) throw new Error('OpenAI not configured')
         const userPrompt = `Interview Question: "${question}"`
+        const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+            { role: 'system', content: this.buildSystemPrompt(context) },
+        ]
+        if (summary && typeof summary === 'string' && summary.trim()) {
+            messages.push({ role: 'system', content: `Conversation Summary so far (use for context): ${summary.trim()}` })
+        }
+        // Include short history for lightweight memory (only human dialogue)
+        if (Array.isArray(history) && history.length > 0) {
+            for (const m of history.slice(-12)) {
+                const prefix = m.role === 'interviewer' ? 'Interviewer' : 'User'
+                messages.push({ role: 'user', content: `${prefix}: ${m.content}` })
+            }
+        }
+        messages.push({ role: 'user', content: userPrompt })
         const stream = await this.client.chat.completions.create({
             model: this.model,
-            messages: [
-                { role: 'system', content: this.buildSystemPrompt(context) },
-                { role: 'user', content: userPrompt },
-            ],
+            messages,
             max_tokens: this.computeMaxTokens(context),
             temperature: this.computeTemperature(context),
             stream: true,
@@ -285,6 +301,33 @@ Guidelines:
                 yield delta as string
             }
         }
+    }
+
+    async summarizeHistory(
+        history: { role: 'user' | 'interviewer'; content: string }[],
+        prevSummary: string,
+        context?: ChatContext,
+    ): Promise<string> {
+        if (!env.OPENAI_API_KEY) throw new Error('OpenAI not configured')
+        const system = `You are a note-taker that creates compact rolling summaries of an interview coaching conversation.
+Rules:
+- Output 8-12 concise bullet-like sentences in plain text (no bullets), <= 1800 characters total.
+- Capture facts the assistant should remember (name, role, preferences, constraints, prior answers, follow-ups asked).
+- Do not include filler, meta instructions, or placeholders.`
+        const payload: any = {
+            previous_summary: prevSummary || '',
+            transcript: history.map(h => `${h.role === 'interviewer' ? 'Interviewer' : 'User'}: ${h.content}`).join('\n'),
+        }
+        const resp = await this.client.chat.completions.create({
+            model: this.model,
+            messages: [
+                { role: 'system', content: system },
+                { role: 'user', content: JSON.stringify(payload) },
+            ],
+            max_tokens: 512,
+            temperature: 0.2,
+        })
+        return resp.choices[0]?.message?.content?.trim() || prevSummary || ''
     }
 
     async transcribeAudioBuffer(fileBuffer: Buffer, mimeType: string): Promise<string> {

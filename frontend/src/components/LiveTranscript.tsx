@@ -102,7 +102,7 @@ function LiveTranscript({ segments }: LiveTranscriptProps) {
         <div className="bg-[#2c2c2c] rounded-md shadow-lg border border-gray-700 p-4 h-full overflow-y-auto" ref={scrollRef}>
             <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-semibold text-gray-200 flex items-center gap-2">
-                    <MessageCircle className="h-5 w-5 text-purple-600" />
+                    <MessageCircle className="h-5 w-5 text-purple-500" />
                     Live Transcript
                 </h3>
                 <div className="flex items-center gap-2">

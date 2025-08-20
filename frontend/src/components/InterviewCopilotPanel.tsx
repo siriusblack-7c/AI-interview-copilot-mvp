@@ -136,7 +136,7 @@ export default function InterviewCopilotPanel({
 
                     </div>
                 </div>
-                <div className="max-w-[250px] h-full flex flex-col justify-between">
+                <div className="max-w-[250px] min-w-[250px] h-full flex flex-col justify-between">
                     {items.length > 0 && (
                         <div className="mt-4 flex justify-end">
                             <button onClick={onClearHistory} className="text-xs text-red-500 hover:text-red-400">Clear history</button>

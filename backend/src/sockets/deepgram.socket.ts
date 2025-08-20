@@ -3,6 +3,7 @@ import { createClient, LiveClient, LiveTranscriptionEvents } from '@deepgram/sdk
 import { env } from '../config/env'
 import { logger } from '../utils/logger'
 import { openaiService } from '../services/openai.service'
+import { chatMemory } from './chatMemory'
 import { randomUUID } from 'node:crypto'
 
 type DeepgramSession = {
@@ -148,6 +149,8 @@ function createDeepgramSession(socket: Socket, sessions: Map<string, DeepgramSes
                     socket.emit('deepgram:transcript', { text, isFinal })
                     if (isFinal) {
                         try {
+                            // Record interviewer utterance as part of chat memory
+                            chatMemory.appendInterviewer(socket.id, text)
                             const detection = await openaiService.detectQuestionAndAnswer(text)
                             if (detection.isQuestion && detection.question) {
                                 const id = randomUUID()
