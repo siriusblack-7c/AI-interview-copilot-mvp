@@ -134,10 +134,37 @@ export async function nextMockQuestion(req: Request, res: Response, next: NextFu
             res.status(400).json({ ok: false, error: 'Session is not mock type' })
             return
         }
-        const q = await generateMockInterviewerQuestion({ session: record!, lastAnswer: lastAnswer || '' })
-        // Also store in cache
-        sessionCache.set(sessionId, { ...record!, updatedAt: new Date().toISOString() })
-        res.json({ ok: true, question: q })
+
+        // Prefer OpenAI-powered interviewer questions when configured; fallback to simple mock generator
+        let question: string | null = null
+        try {
+            const seed = (lastAnswer && lastAnswer.trim())
+                ? `User just answered: "${lastAnswer.trim()}". Ask a relevant next interview question.`
+                : `Start a mock interview${record.jobDescription ? ' based on the job description' : ''}${record.resume ? ' and resume' : ''}. Ask a strong opening question.`
+
+            // Avoid repeating recently asked mock questions by remembering them in the session cache
+            const prev: string[] = Array.isArray((record as any).lastMockQuestions) ? (record as any).lastMockQuestions : []
+
+            // Try to get up to three options and pick the first not in prev
+            const options = await openaiService.generateInterviewerQuestionsFromSeed(seed, {
+                resume: record.resume,
+                jobDescription: record.jobDescription,
+                additionalContext: record.context,
+            })
+            const pick = options.find(q => !prev.some(p => p.toLowerCase() === q.toLowerCase())) || options[0]
+            question = (pick || '').trim() || null
+
+            // Persist chosen question for dedupe next round
+            const updatedPrev = [...prev, question].slice(-10)
+            sessionCache.set(sessionId, { ...record, lastMockQuestions: updatedPrev, updatedAt: new Date().toISOString() })
+        } catch {
+            // Fallback lightweight generator when OpenAI not configured or errors
+            const q = await generateMockInterviewerQuestion({ session: record!, lastAnswer: lastAnswer || '' })
+            question = q
+            sessionCache.set(sessionId, { ...record!, updatedAt: new Date().toISOString() })
+        }
+
+        res.json({ ok: true, question: question || '' })
     } catch (err) {
         next(err)
     }

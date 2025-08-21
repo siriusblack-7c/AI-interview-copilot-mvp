@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, lazy, Suspense } from 'react';
-import { useNavigate } from 'react-router-dom'
+// import { useNavigate } from 'react-router-dom'
 // const ResponseGenerator = lazy(() => import('./ResponseGenerator'));
 const TextToSpeech = lazy(() => import('./TextToSpeech'));
 import { useConversation } from '../hooks/useConversation';
@@ -18,7 +18,7 @@ const InterviewCopilotPanel = lazy(() => import('./InterviewCopilotPanel'));
 
 
 function InterviewDashboard({ sessionId }: { sessionId: string }) {
-    const navigate = useNavigate()
+    // const navigate = useNavigate()
     const [currentQuestion, setCurrentQuestion] = useState('');
     const [currentResponse, setCurrentResponse] = useState('');
     const [interviewerSpeech, setInterviewerSpeech] = useState('');
@@ -101,6 +101,7 @@ function InterviewDashboard({ sessionId }: { sessionId: string }) {
     // Track last 'them' finalized text to suppress duplicate 'me' lines when sharing
     const lastThemFinalRef = useRef<{ text: string; at: number } | null>(null);
     const lastResponseRef = useRef<string>('');
+    const lastUserAnswerRef = useRef<string>('');
     const lastMicSnapshotRef = useRef<string | null>(null);
     const mockStartedRef = useRef<boolean>(false);
     const normalize = (s: string) => s.replace(/\s+/g, ' ').trim().toLowerCase();
@@ -172,11 +173,22 @@ function InterviewDashboard({ sessionId }: { sessionId: string }) {
                 upsertTranscript({ speaker, text: micLive.text, isFinal: micLive.isFinal });
                 if (micLive.isFinal) {
                     if (sessionType === 'mock') {
-                        // In mock mode, reflect user's speech under 'me'
+                        // In mock mode, treat mic final as user's answer, then fetch next interviewer question
                         const utterance = micLive.text;
-                        setCurrentQuestion(utterance);
-                        addQuestion(utterance);
+                        lastUserAnswerRef.current = utterance;
                         try { upsertTranscript({ speaker: 'me', text: utterance, isFinal: true }) } catch { }
+                        // Fetch and speak next interviewer question automatically
+                        (async () => {
+                            try {
+                                const q = await getNextMockQuestion(sessionId || '', utterance);
+                                if (q) {
+                                    setCurrentQuestion(q);
+                                    addQuestion(q);
+                                    try { upsertTranscript({ speaker: 'them', text: q, isFinal: true }) } catch { }
+                                    setInterviewerSpeech(q);
+                                }
+                            } catch { }
+                        })();
                     } else {
                         try {
                             const socket = getSocket();
@@ -202,7 +214,7 @@ function InterviewDashboard({ sessionId }: { sessionId: string }) {
         mockStartedRef.current = true
             ; (async () => {
                 try {
-                    const q = await getNextMockQuestion(sessionId, currentResponse || undefined)
+                    const q = await getNextMockQuestion(sessionId, lastUserAnswerRef.current || undefined)
                     if (q) {
                         setCurrentQuestion(q)
                         addQuestion(q)
@@ -308,7 +320,7 @@ function InterviewDashboard({ sessionId }: { sessionId: string }) {
                         {/* Screen Share Preview (shown on top of voice input box while sharing) */}
                         <Suspense fallback={<div className="h-64 bg-[#2a2a2a] rounded-md animate-pulse" />}>
                             {/* Mode Toggle */}
-                            {/* <div className="w-full flex items-center justify-end gap-3">
+                            <div className="w-full flex items-center justify-end gap-3">
                                 <div className="text-xs text-gray-300">Mode</div>
                                 <div className="inline-flex rounded-md overflow-hidden border border-gray-700">
                                     <button
@@ -326,7 +338,7 @@ function InterviewDashboard({ sessionId }: { sessionId: string }) {
                                         Mock
                                     </button>
                                 </div>
-                            </div> */}
+                            </div>
                             <ScreenSharePreview
                                 isMock={sessionType === 'mock'}
                                 onLeaveCall={async () => {
@@ -338,7 +350,7 @@ function InterviewDashboard({ sessionId }: { sessionId: string }) {
                                         }).filter(Boolean) as any
                                         await updateSession({ sessionId: sessionId || '', conversation_history: history as any, status: 'active' })
                                     } catch { } finally {
-                                        try { navigate('/live-interview', { replace: true }) } catch { }
+                                        // try { navigate('/live-interview', { replace: true }) } catch { }
                                     }
                                 }}
                                 onEndCall={async () => {
@@ -350,7 +362,7 @@ function InterviewDashboard({ sessionId }: { sessionId: string }) {
                                         }).filter(Boolean) as any
                                         await updateSession({ sessionId: sessionId || '', conversation_history: history as any, status: 'completed' })
                                     } catch { } finally {
-                                        try { navigate('/live-interview', { replace: true }) } catch { }
+                                        // try { navigate('/live-interview', { replace: true }) } catch { }
                                     }
                                 }}
                             />
@@ -417,7 +429,7 @@ function InterviewDashboard({ sessionId }: { sessionId: string }) {
                                     className="bg-purple-600 hover:bg-purple-700 text-white text-xs px-3 py-2 rounded-md"
                                     onClick={async () => {
                                         try {
-                                            const q = await getNextMockQuestion(sessionId || '', currentResponse || undefined)
+                                            const q = await getNextMockQuestion(sessionId || '', lastUserAnswerRef.current || undefined)
                                             if (q) {
                                                 setCurrentQuestion(q)
                                                 addQuestion(q)

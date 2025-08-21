@@ -250,6 +250,31 @@ Rules:
         return this.suggestQuestions('next', utterance, context)
     }
 
+    /**
+     * Public wrapper to generate interviewer-style questions from a seed signal.
+     * Useful for mock interviewer flows to produce the next question from
+     * the user's last answer or any other seed text.
+     */
+    async generateInterviewerQuestionsFromSeed(seed: string, context?: ChatContext): Promise<string[]> {
+        return this.suggestQuestions('next', seed, context)
+    }
+
+    /**
+     * Generates opening interviewer questions (first prompts) grounded in the
+     * merged context (resume, job description, additional context). Returns up to three
+     * concise, clear questions; caller can pick the first or randomize.
+     */
+    async generateOpeningInterviewerQuestions(context?: ChatContext): Promise<string[]> {
+        const merged = this.mergeContext(context)
+        // Build a seed that nudges the model to start an interview appropriately.
+        const parts: string[] = []
+        if (merged?.jobDescription) parts.push('Based on the target job description')
+        if (merged?.resume) parts.push('and the candidate\'s resume')
+        const basis = parts.length ? `${parts.join(' ')}.` : 'Without specific resume or job description.'
+        const seed = `${basis} Start a mock job interview and propose strong opening interview questions to assess fit, experience, and impact.`
+        return this.suggestQuestions('next', seed, merged)
+    }
+
     async generateJobDescription(params: {
         jobTitle: string
         industry?: string | undefined
