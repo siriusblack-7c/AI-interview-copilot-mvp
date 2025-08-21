@@ -41,9 +41,6 @@ export default function InterviewControlBar({ timerSeconds, isSharing, onToggleS
     const mm = Math.floor(timerSeconds / 60).toString().padStart(2, '0')
     const ss = (timerSeconds % 60).toString().padStart(2, '0')
 
-    const mainLabel = isMock ? 'Mock Interview' : (isSharing ? 'Leave Interview' : 'Start Interview')
-    const mainIsActive = isSharing && !isMock
-
     return (
         <div className="w-full flex items-center justify-between px-2 py-2 flex-wrap gap-2">
             <div className="flex items-center gap-3">
