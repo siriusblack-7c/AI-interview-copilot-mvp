@@ -47,14 +47,19 @@ export default function InterviewControlBar({ timerSeconds, isSharing, onToggleS
     return (
         <div className="w-full flex items-center justify-between px-2 py-2 flex-wrap gap-2">
             <div className="flex items-center gap-3">
-                <span className="bg-purple-600 text-white px-3 py-1.5 rounded-full text-xs">Premium</span>
+                <span className="text-white px-3 py-1.5 rounded-full text-xs" style={{ backgroundColor: '#9333ea' }}>Premium</span>
                 <div className="text-xs text-gray-300 flex items-center gap-2">
                     <ClockIcon className="w-4 h-4" />
                     {mm}:{ss}
                 </div>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-                <button onClick={isCameraOn ? disableCamera : enableCamera} className={`w-8 h-8 rounded-full bg-[#2a2a2a] hover:bg-[#3a3a3a] text-gray-300 flex items-center justify-center ${isCameraOn ? 'bg-green-600 hover:bg-green-700' : ''}`} title="Disable Camera" aria-label="Disable Camera">
+                <button
+                    onClick={isCameraOn ? disableCamera : enableCamera}
+                    className={`w-8 h-8 rounded-full bg-[#2a2a2a] ${isCameraOn ? 'hover:opacity-90' : 'hover:bg-[#3a3a3a]'} text-gray-300 flex items-center justify-center`}
+                    style={isCameraOn ? { backgroundColor: '#16a34a' } : undefined}
+                    title="Disable Camera" aria-label="Disable Camera"
+                >
                     {isCameraOn ? <Video className="w-4 h-4" /> : <VideoOff className="w-4 h-4" />}
                 </button>
                 <button onClick={onOpenSettings} className="w-8 h-8 rounded-full bg-[#2a2a2a] hover:bg-[#3a3a3a] text-gray-300 flex items-center justify-center" title="Settings" aria-label="Settings">
@@ -63,7 +68,8 @@ export default function InterviewControlBar({ timerSeconds, isSharing, onToggleS
                 <button
                     disabled={!isMicActive}
                     onClick={toggleListening}
-                    className={`w-8 h-8 rounded-full flex items-center justify-center ${isListening ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-[#2a2a2a] hover:bg-[#3a3a3a] text-gray-300'} ${!isMicActive ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center ${isListening ? 'text-white hover:opacity-90' : 'bg-[#2a2a2a] hover:bg-[#3a3a3a] text-gray-300'} ${!isMicActive ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    style={isListening ? { backgroundColor: '#16a34a' } : undefined}
                     title={isListening ? 'Mute microphone' : 'Unmute microphone'}
                     aria-label={isListening ? 'Mute microphone' : 'Unmute microphone'}
                 >
@@ -71,19 +77,16 @@ export default function InterviewControlBar({ timerSeconds, isSharing, onToggleS
                 </button>
                 <div className="relative" ref={menuRef as any}>
                     <button
-                        onClick={() => {
-                            if (isMock) { setMenuOpen((prev) => !prev); return }
-                            if (!isSharing) { onToggleShare(); return }
-                            setMenuOpen((prev) => !prev)
-                        }}
-                        className={`ml-3 flex items-center gap-2 ${mainIsActive || isMock ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'} text-white text-xs px-3 py-2 rounded-md`}
-                        title={mainLabel}
+                        onClick={() => setMenuOpen((prev) => !prev)}
+                        className="ml-3 flex items-center gap-2 text-white text-xs px-3 py-2 rounded-md hover:opacity-90"
+                        style={{ backgroundColor: '#dc2626' }}
+                        title="End Interview"
                     >
                         <Phone className="w-4 h-4 rotate-[135deg]" />
-                        {mainLabel}
-                        {(isSharing || isMock) && <ChevronDown className="w-4 h-4" />}
+                        End Interview
+                        <ChevronDown className="w-4 h-4" />
                     </button>
-                    {(menuOpen) && (
+                    {menuOpen && (
                         <div className="absolute right-0 mt-2 w-44 rounded-lg bg-[#2c2c2c] border border-gray-700 shadow-lg p-2 z-20">
                             <button
                                 onClick={() => { setMenuOpen(false); (onLeaveCall || onToggleShare)() }}
@@ -97,7 +100,7 @@ export default function InterviewControlBar({ timerSeconds, isSharing, onToggleS
                                 className="w-full flex items-center justify-between text-sm text-white hover:bg-[#3a3a3a] px-3 py-2 rounded-md mt-1"
                             >
                                 <span>End Call</span>
-                                <PhoneOff className="w-4 h-4 text-red-400" />
+                                <PhoneOff className="w-4 h-4" style={{ color: '#f87171' }} />
                             </button>
                         </div>
                     )}

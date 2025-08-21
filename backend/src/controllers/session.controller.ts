@@ -143,4 +143,64 @@ export async function nextMockQuestion(req: Request, res: Response, next: NextFu
     }
 }
 
+const registerSchema = z.object({
+    sessionId: z.string().min(1),
+    resume: z.string().optional(),
+    jobDescription: z.string().optional(),
+    context: z.string().optional(),
+    type: z.enum(['live', 'mock', 'coding']).optional(),
+})
+
+export async function registerSession(req: Request, res: Response, next: NextFunction) {
+    try {
+        // Accept multiple shapes from FE/main backend
+        const raw: any = req.body || {}
+        const params: any = (raw && raw.params) || {}
+        const sid = String(
+            raw.sessionId ?? raw.sessionID ?? params.sessionId ?? params.sessionID ?? ''
+        ).trim()
+        if (!sid) {
+            res.status(400).json({ ok: false, error: 'sessionId is required' })
+            return
+        }
+        const resume = (() => {
+            const r = raw.resume ?? raw.resume_textcontent ?? params.resume ?? ''
+            return typeof r === 'string' ? r : ''
+        })()
+        const jobDescription = (() => {
+            const jd = raw.jobDescription ?? raw.role ?? params.jobDescription ?? ''
+            return typeof jd === 'string' ? jd : ''
+        })()
+        const context = (() => {
+            const c = raw.context ?? params.context ?? ''
+            return typeof c === 'string' ? c : ''
+        })()
+        const type = (() => {
+            const t = raw.type ?? params.type
+            return t === 'mock' || t === 'coding' || t === 'live' ? t : undefined
+        })()
+
+        const prev = sessionCache.get(sid)
+        const normalized: SessionData = {
+            ...(prev || { sessionId: sid, status: 'active' }),
+            sessionId: sid,
+            resume,
+            jobDescription,
+            context,
+            type: type || prev?.type || 'live',
+            updatedAt: new Date().toISOString(),
+        }
+        sessionCache.set(sid, normalized)
+        openaiService.setDefaultContext({
+            resume: normalized.resume,
+            jobDescription: normalized.jobDescription,
+            additionalContext: normalized.context,
+        })
+        console.log('registerSession', { sessionId: sid, len: { resume: resume.length, jobDescription: jobDescription.length, context: context.length } })
+        res.json({ ok: true, data: normalized })
+    } catch (err) {
+        next(err)
+    }
+}
+
 

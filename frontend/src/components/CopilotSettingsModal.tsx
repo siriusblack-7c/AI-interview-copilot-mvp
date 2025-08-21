@@ -23,8 +23,8 @@ export default function CopilotSettingsModal({ open, onClose }: Props) {
                     </button>
                 </div>
                 <div className="flex items-center gap-2 mb-3">
-                    <button onClick={() => setActiveTab('copilot')} className={`px-3 py-1.5 rounded-full text-xs ${activeTab === 'copilot' ? 'bg-purple-600 text-white' : 'bg-[#3a3a3a] text-gray-300'}`}>Copilot</button>
-                    <button onClick={() => setActiveTab('permission')} className={`px-3 py-1.5 rounded-full text-xs ${activeTab === 'permission' ? 'bg-purple-600 text-white' : 'bg-[#3a3a3a] text-gray-300'}`}>Permission</button>
+                    <button onClick={() => setActiveTab('copilot')} className={`px-3 py-1.5 rounded-full text-xs ${activeTab === 'copilot' ? 'text-white' : 'bg-[#3a3a3a] text-gray-300'}`} style={activeTab === 'copilot' ? { backgroundColor: '#9333ea' } : undefined}>Copilot</button>
+                    <button onClick={() => setActiveTab('permission')} className={`px-3 py-1.5 rounded-full text-xs ${activeTab === 'permission' ? 'text-white' : 'bg-[#3a3a3a] text-gray-300'}`} style={activeTab === 'permission' ? { backgroundColor: '#9333ea' } : undefined}>Permission</button>
                 </div>
                 <div className="text-xs text-gray-400 mb-3">The following settings will affect all interviews, while the settings within each interview will only affect that specific interview.</div>
                 {activeTab === 'copilot' ? (
@@ -35,7 +35,9 @@ export default function CopilotSettingsModal({ open, onClose }: Props) {
                             <div className="grid grid-cols-3 gap-2">
                                 {(['concise', 'default', 'lengthy'] as const).map(v => (
                                     <button key={v} onClick={() => updateSettings({ verbosity: v })}
-                                        className={`px-3 py-2 rounded ${settings.verbosity === v ? 'bg-purple-600 text-white' : 'bg-[#3a3a3a] text-gray-300'}`}>{v.charAt(0).toUpperCase() + v.slice(1)}</button>
+                                        className={`px-3 py-2 rounded ${settings.verbosity === v ? 'text-white' : 'bg-[#3a3a3a] text-gray-300'}`}
+                                        style={settings.verbosity === v ? { backgroundColor: '#9333ea' } : undefined}
+                                    >{v.charAt(0).toUpperCase() + v.slice(1)}</button>
                                 ))}
                             </div>
                         </div>
@@ -44,7 +46,9 @@ export default function CopilotSettingsModal({ open, onClose }: Props) {
                         <div className="mb-3">
                             <div className="text-xs text-gray-300 mb-1">Language for Copilot responses</div>
                             <select value={settings.language} onChange={(e) => updateSettings({ language: e.target.value })}
-                                className="w-full bg-[#3a3a3a] outline-none focus:border-purple-600 text-gray-200 text-sm rounded px-3 py-2 border border-gray-600">
+                                className="w-full bg-[#3a3a3a] outline-none text-gray-200 text-sm rounded px-3 py-2 border border-gray-600"
+                                style={{ boxShadow: '0 0 0 1px transparent' }}
+                            >
                                 <option>English (Global)</option>
                                 <option>English (US)</option>
                                 <option>English (UK)</option>
@@ -96,7 +100,9 @@ export default function CopilotSettingsModal({ open, onClose }: Props) {
                             <div className="grid grid-cols-3 gap-2">
                                 {(['low', 'default', 'high'] as const).map(v => (
                                     <button key={v} onClick={() => updateSettings({ temperature: v })}
-                                        className={`px-3 py-2 rounded ${settings.temperature === v ? 'bg-purple-600 text-white' : 'bg-[#3a3a3a] text-gray-300'}`}>{v.charAt(0).toUpperCase() + v.slice(1)}</button>
+                                        className={`px-3 py-2 rounded ${settings.temperature === v ? 'text-white' : 'bg-[#3a3a3a] text-gray-300'}`}
+                                        style={settings.temperature === v ? { backgroundColor: '#9333ea' } : undefined}
+                                    >{v.charAt(0).toUpperCase() + v.slice(1)}</button>
                                 ))}
                             </div>
                         </div>
@@ -106,8 +112,10 @@ export default function CopilotSettingsModal({ open, onClose }: Props) {
                             <div className="text-xs text-gray-300 mb-1">Performance Preference</div>
                             <div className="grid grid-cols-2 gap-2">
                                 {(['speed', 'quality'] as const).map(v => (
-                                    <button key={v} onClick={() => updateSettings({ performance : v })}
-                                        className={`px-3 py-2 rounded ${settings.performance === v ? 'bg-purple-600 text-white' : 'bg-[#3a3a3a] text-gray-300'}`}>{v.charAt(0).toUpperCase() + v.slice(1)}</button>
+                                    <button key={v} onClick={() => updateSettings({ performance: v })}
+                                        className={`px-3 py-2 rounded ${settings.performance === v ? 'text-white' : 'bg-[#3a3a3a] text-gray-300'}`}
+                                        style={settings.performance === v ? { backgroundColor: '#9333ea' } : undefined}
+                                    >{v.charAt(0).toUpperCase() + v.slice(1)}</button>
                                 ))}
                             </div>
                         </div>
@@ -121,21 +129,21 @@ export default function CopilotSettingsModal({ open, onClose }: Props) {
                                     <div className="text-sm text-gray-200">Audio</div>
                                     <div className="text-xs text-gray-400">Allow AI to hear you for feedback.</div>
                                 </div>
-                                <button onClick={requestAudio} className={`text-xs px-3 py-1 rounded ${permissions.audio ? 'bg-green-600 text-white' : 'bg-[#3a3a3a] text-gray-200'}`}>{permissions.audio ? 'Granted' : 'Request'}</button>
+                                <button onClick={requestAudio} className={`text-xs px-3 py-1 rounded ${permissions.audio ? 'text-white' : 'bg-[#3a3a3a] text-gray-200'}`} style={permissions.audio ? { backgroundColor: '#16a34a' } : undefined}>{permissions.audio ? 'Granted' : 'Request'}</button>
                             </div>
                             <div className="bg-[#303030] rounded border border-gray-700 p-3 flex items-center justify-between">
                                 <div>
                                     <div className="text-sm text-gray-200">Video</div>
                                     <div className="text-xs text-gray-400">Enable camera for realism of mock interview.</div>
                                 </div>
-                                <button onClick={requestVideo} className={`text-xs px-3 py-1 rounded ${permissions.video ? 'bg-green-600 text-white' : 'bg-[#3a3a3a] text-gray-200'}`}>{permissions.video ? 'Granted' : 'Request'}</button>
+                                <button onClick={requestVideo} className={`text-xs px-3 py-1 rounded ${permissions.video ? 'text-white' : 'bg-[#3a3a3a] text-gray-200'}`} style={permissions.video ? { backgroundColor: '#16a34a' } : undefined}>{permissions.video ? 'Granted' : 'Request'}</button>
                             </div>
                             <div className="bg-[#303030] rounded border border-gray-700 p-3 flex items-center justify-between">
                                 <div>
                                     <div className="text-sm text-gray-200">Browser Notifications</div>
                                     <div className="text-xs text-gray-400">Receive updates on interview progress.</div>
                                 </div>
-                                <button onClick={requestNotifications} className={`text-xs px-3 py-1 rounded ${permissions.notifications ? 'bg-green-600 text-white' : 'bg-[#3a3a3a] text-gray-200'}`}>{permissions.notifications ? 'Granted' : 'Request'}</button>
+                                <button onClick={requestNotifications} className={`text-xs px-3 py-1 rounded ${permissions.notifications ? 'text-white' : 'bg-[#3a3a3a] text-gray-200'}`} style={permissions.notifications ? { backgroundColor: '#16a34a' } : undefined}>{permissions.notifications ? 'Granted' : 'Request'}</button>
                             </div>
                         </div>
                     </>
@@ -143,7 +151,7 @@ export default function CopilotSettingsModal({ open, onClose }: Props) {
 
                 <div className="flex items-center justify-end gap-2">
                     <button className="px-4 py-2 text-sm rounded bg-[#3a3a3a] text-gray-300" onClick={onClose}>Cancel</button>
-                    <button className="px-4 py-2 text-sm rounded bg-purple-600 text-white" onClick={onClose}>Confirm</button>
+                    <button className="px-4 py-2 text-sm rounded text-white" style={{ backgroundColor: '#9333ea' }} onClick={onClose}>Confirm</button>
                 </div>
             </div>
         </div>

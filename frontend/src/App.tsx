@@ -1,12 +1,14 @@
+import { useParams } from 'react-router-dom'
 import InterviewDashboard from './components/InterviewDashboard'
 import InterviewProvider from './providers/InterviewProvider'
 
-function App() {
+function AIInterviewCopilot() {
+  const { sessionId } = useParams();
   return (
     <InterviewProvider>
-      <InterviewDashboard />
+      <InterviewDashboard sessionId={sessionId || ''} />
     </InterviewProvider>
   )
 }
 
-export default App
+export default AIInterviewCopilot

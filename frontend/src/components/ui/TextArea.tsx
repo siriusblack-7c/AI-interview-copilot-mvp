@@ -21,9 +21,9 @@ const colorSchemes = {
         bg: 'bg-gray-800',
         border: 'border-purple-200',
         text: 'text-gray-200',
-        focus: 'focus:ring-purple-500 focus:border-purple-500',
-        button: 'bg-purple-500 hover:bg-purple-600',
-        icon: 'text-purple-600'
+        focus: '',
+        button: 'text-white',
+        icon: ''
     },
     orange: {
         bg: 'bg-gray-800',
@@ -79,7 +79,8 @@ export const TextArea: React.FC<TextAreaProps> = ({
                         value={value}
                         onChange={(e) => onChange(e.target.value)}
                         placeholder={placeholder}
-                        className={`w-full p-3 border text-gray-300 bg-[#202020] border-gray-300 rounded-lg ${colors.focus} text-sm`}
+                        className={`w-full p-3 border text-gray-300 bg-[#202020] border-gray-300 rounded-lg text-sm`}
+                        style={colorScheme === 'purple' ? { boxShadow: '0 0 0 1px transparent' } : undefined}
                         rows={rows}
                     />
                     <div className="flex items-center justify-between mt-2">
@@ -101,7 +102,8 @@ export const TextArea: React.FC<TextAreaProps> = ({
                                     if (onSave) onSave(value);
                                     else onToggleEdit();
                                 }}
-                                className={`${colors.button} text-white px-3 py-1 rounded text-xs`}
+                                className={`px-3 py-1 rounded text-xs ${colors.button}`}
+                                style={colorScheme === 'purple' ? { backgroundColor: '#8b5cf6' } : undefined}
                                 disabled={!value.trim()}
                             >
                                 Save
@@ -115,7 +117,7 @@ export const TextArea: React.FC<TextAreaProps> = ({
                 <div className={`${colors.bg} border ${colors.border} rounded-lg p-4`}>
                     <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
-                            <Edit3 className={`h-4 w-4 ${colors.icon}`} />
+                            <Edit3 className={`h-4 w-4 ${colors.icon}`} style={colorScheme === 'purple' ? { color: '#9333ea' } : undefined} />
                             <span className={`text-sm font-medium ${colors.text}`}>
                                 {title} Loaded
                             </span>
@@ -126,7 +128,7 @@ export const TextArea: React.FC<TextAreaProps> = ({
                                 className={`${colors.text} hover:${colors.text.replace('text-', 'text-')} p-1`}
                                 title={`Copy ${title.toLowerCase()}`}
                             >
-                                <Copy className={`h-3 w-3 ${colors.icon}`} />
+                                <Copy className={`h-3 w-3 ${colors.icon}`} style={colorScheme === 'purple' ? { color: '#9333ea' } : undefined} />
                             </button>
                             <button
                                 onClick={onToggleEdit}

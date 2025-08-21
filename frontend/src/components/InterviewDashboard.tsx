@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect, lazy, Suspense } from 'react';
+import { useNavigate } from 'react-router-dom'
 // const ResponseGenerator = lazy(() => import('./ResponseGenerator'));
 const TextToSpeech = lazy(() => import('./TextToSpeech'));
 import { useConversation } from '../hooks/useConversation';
@@ -6,25 +7,27 @@ import { useInterviewState } from '../context/InterviewStateContext';
 import type { TextToSpeechRef } from '../types/speech';
 const LiveTranscript = lazy(() => import('./LiveTranscript'));
 import useDeepgramLive from '../hooks/useDeepgramLive';
+import { registerSessionToBackend } from '../services/backend';
 import useTranscriptBuffer from '../hooks/useTranscriptBuffer';
-import { getSocket, fetchSession } from '../services/backend';
-import { completeSession, getNextMockQuestion } from '../services/backend';
+import { getSocket, fetchSession, fetchMainSession } from '../services/backend';
+import { updateSession, getNextMockQuestion } from '../services/backend';
 import createAudioAttribution from '../utils/audioAttribution';
 // import ConversationHistory from './ConversationHistory';
 const ScreenSharePreview = lazy(() => import('./ScreenSharePreview'));
 const InterviewCopilotPanel = lazy(() => import('./InterviewCopilotPanel'));
 
 
-export default function InterviewDashboard() {
+function InterviewDashboard({ sessionId }: { sessionId: string }) {
+    const navigate = useNavigate()
     const [currentQuestion, setCurrentQuestion] = useState('');
     const [currentResponse, setCurrentResponse] = useState('');
+    const [interviewerSpeech, setInterviewerSpeech] = useState('');
     // Removed OpenAI configuration panel/state
     // Removed voice input panel; keep only muted state
     const [isMuted, setIsMuted] = useState(false);
     const [resumeText, setResumeText] = useState('');
     const [jobDescription, setJobDescription] = useState('');
     const [additionalContext, setAdditionalContext] = useState('');
-    const [sessionId, setSessionId] = useState<string | null>(null);
     const [sessionType, setSessionType] = useState<'live' | 'mock' | 'coding'>('live');
 
     const textToSpeechRef = useRef<TextToSpeechRef>(null);
@@ -36,14 +39,14 @@ export default function InterviewDashboard() {
     // Decouple system-audio transcription from mic listening: system stays active while sharing
 
     // If system audio sharing is active, mute TTS to avoid capturing our own AI response
-    useEffect(() => {
-        // Read sessionId from URL query param
-        try {
-            const url = new URL(window.location.href);
-            const sid = url.searchParams.get('sessionId');
-            if (sid) setSessionId(sid);
-        } catch { }
-    }, []);
+    // useEffect(() => {
+    //     // Read sessionId from URL query param
+    //     try {
+    //         const url = new URL(window.location.href);
+    //         const sid = url.searchParams.get('sessionId');
+    //         if (sid) setSessionId(sid);
+    //     } catch { }
+    // }, []);
 
     useEffect(() => {
         // Fetch session context and set into local state
@@ -51,8 +54,16 @@ export default function InterviewDashboard() {
         let cancelled = false;
         (async () => {
             try {
-                const data = await fetchSession(sessionId);
+                let data: any
+                try {
+                    // Prefer direct main backend if configured
+                    data = await fetchMainSession(sessionId)
+                } catch {
+                    // Fallback to our backend aggregator (mock)
+                    data = await fetchSession(sessionId)
+                }
                 if (cancelled) return;
+                updateSession({ sessionId: sessionId || '', conversation_history: [] as any, status: 'active' })
                 setResumeText(data.resume || '');
                 setJobDescription(data.jobDescription || '');
                 setAdditionalContext(data.context || '');
@@ -61,6 +72,9 @@ export default function InterviewDashboard() {
                     setSessionType(t)
                     try { (window as any).__MOCK_INTERVIEW__ = t === 'mock' } catch { }
                 } catch { setSessionType('live') }
+                try {
+                    await registerSessionToBackend({ sessionId, resume: data.resume, jobDescription: data.jobDescription, context: data.context, type: (data as any).type })
+                } catch { }
             } catch { }
         })();
         return () => { cancelled = true };
@@ -158,11 +172,11 @@ export default function InterviewDashboard() {
                 upsertTranscript({ speaker, text: micLive.text, isFinal: micLive.isFinal });
                 if (micLive.isFinal) {
                     if (sessionType === 'mock') {
-                        // In mock mode, use local speech-to-text only and send directly to OpenAI as a question
+                        // In mock mode, reflect user's speech under 'me'
                         const utterance = micLive.text;
                         setCurrentQuestion(utterance);
                         addQuestion(utterance);
-                        try { upsertTranscript({ speaker: 'them', text: utterance, isFinal: true }) } catch { }
+                        try { upsertTranscript({ speaker: 'me', text: utterance, isFinal: true }) } catch { }
                     } else {
                         try {
                             const socket = getSocket();
@@ -193,6 +207,7 @@ export default function InterviewDashboard() {
                         setCurrentQuestion(q)
                         addQuestion(q)
                         try { upsertTranscript({ speaker: 'them', text: q, isFinal: true }) } catch { }
+                        setInterviewerSpeech(q)
                     }
                 } catch { }
             })()
@@ -293,7 +308,7 @@ export default function InterviewDashboard() {
                         {/* Screen Share Preview (shown on top of voice input box while sharing) */}
                         <Suspense fallback={<div className="h-64 bg-[#2a2a2a] rounded-md animate-pulse" />}>
                             {/* Mode Toggle */}
-                            <div className="w-full flex items-center justify-end gap-3">
+                            {/* <div className="w-full flex items-center justify-end gap-3">
                                 <div className="text-xs text-gray-300">Mode</div>
                                 <div className="inline-flex rounded-md overflow-hidden border border-gray-700">
                                     <button
@@ -311,7 +326,7 @@ export default function InterviewDashboard() {
                                         Mock
                                     </button>
                                 </div>
-                            </div>
+                            </div> */}
                             <ScreenSharePreview
                                 isMock={sessionType === 'mock'}
                                 onLeaveCall={async () => {
@@ -321,8 +336,10 @@ export default function InterviewDashboard() {
                                             if (c.type === 'response') return { role: 'user', content: c.content } as const
                                             return null as any
                                         }).filter(Boolean) as any
-                                        await completeSession({ sessionId: sessionId || '', history })
-                                    } catch { }
+                                        await updateSession({ sessionId: sessionId || '', conversation_history: history as any, status: 'active' })
+                                    } catch { } finally {
+                                        try { navigate('/live-interview', { replace: true }) } catch { }
+                                    }
                                 }}
                                 onEndCall={async () => {
                                     try {
@@ -331,8 +348,10 @@ export default function InterviewDashboard() {
                                             if (c.type === 'response') return { role: 'user', content: c.content } as const
                                             return null as any
                                         }).filter(Boolean) as any
-                                        await completeSession({ sessionId: sessionId || '', history })
-                                    } catch { }
+                                        await updateSession({ sessionId: sessionId || '', conversation_history: history as any, status: 'completed' })
+                                    } catch { } finally {
+                                        try { navigate('/live-interview', { replace: true }) } catch { }
+                                    }
                                 }}
                             />
                         </Suspense>
@@ -346,7 +365,7 @@ export default function InterviewDashboard() {
                         <Suspense fallback={null}>
                             <TextToSpeech
                                 ref={textToSpeechRef}
-                                text={currentResponse}
+                                text={sessionType === 'mock' ? interviewerSpeech : currentResponse}
                                 autoPlay={true}
                                 onStateChange={handleSpeechStateChange}
                             />
@@ -403,6 +422,7 @@ export default function InterviewDashboard() {
                                                 setCurrentQuestion(q)
                                                 addQuestion(q)
                                                 try { upsertTranscript({ speaker: 'them', text: q, isFinal: true }) } catch { }
+                                                setInterviewerSpeech(q)
                                             }
                                         } catch { }
                                     }}
@@ -419,3 +439,5 @@ export default function InterviewDashboard() {
         </div>
     );
 }
+
+export default InterviewDashboard;

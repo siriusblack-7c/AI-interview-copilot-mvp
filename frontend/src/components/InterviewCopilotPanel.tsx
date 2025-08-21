@@ -63,7 +63,8 @@ export default function InterviewCopilotPanel({
                     <div className="text-xs text-gray-200">Interview Copilot</div>
                     <div className="flex items-center gap-4">
                         <button
-                            className={`w-8 h-8 rounded-full flex items-center justify-center ${!isMuted ? 'bg-green-600 text-white' : 'bg-[#3a3a3a] text-gray-300'}`}
+                            className={`w-8 h-8 rounded-full flex items-center justify-center ${!isMuted ? 'text-white' : 'bg-[#3a3a3a] text-gray-300'}`}
+                            style={!isMuted ? { backgroundColor: '#16a34a' } : undefined}
                             title={!isMuted ? 'AI Speech On (click to mute)' : 'AI Speech Muted (click to unmute)'}
                             onClick={() => onMuteToggle?.(!isMuted)}
                         >
@@ -82,13 +83,13 @@ export default function InterviewCopilotPanel({
                 </div>
                 <div className="mb-2">
                     {isGenerating ? (
-                        <span className="inline-flex items-center gap-2 text-xs text-purple-300">
-                            <span className="inline-block w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
+                        <span className="inline-flex items-center gap-2 text-xs" style={{ color: '#d8b4fe' }}>
+                            <span className="inline-block w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: '#a855f7' }} />
                             AI is thinking...
                         </span>
                     ) : (
                         <span className="inline-flex items-center gap-2 text-xs text-gray-300">
-                            <span className="inline-block w-2 h-2 rounded-full bg-green-500" />
+                            <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: '#22c55e' }} />
                             Ready
                         </span>
                     )}
@@ -98,7 +99,7 @@ export default function InterviewCopilotPanel({
             <div className="flex flex-row gap-2 h-[calc(100vh-140px)]">
                 <div className="flex-1">
                     <div
-                        ref={(el) => { parentRef.current = el as HTMLDivElement; scrollRef.current = el as HTMLDivElement; }}
+                        ref={parentRef}
                         className="flex-1 min-h-[calc(100vh-150px)] max-h-full bg-[#303030] border border-gray-700 rounded-md p-6 overflow-y-auto mb-2"
                     >
                         {items.length === 0 ? (
@@ -117,7 +118,8 @@ export default function InterviewCopilotPanel({
                                             style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${vi.start}px)` }}
                                             className="text-sm text-gray-200 py-1"
                                         >
-                                            <span className={`px-2 py-0.5 rounded-full text-xs mr-2 ${item.type === 'question' ? 'bg-blue-600 text-white' : item.type === 'response' ? 'bg-purple-600 text-white' : 'bg-yellow-600 text-white'}`}>
+                                            <span className={`px-2 py-0.5 rounded-full text-xs mr-2 text-white`}
+                                                style={{ backgroundColor: item.type === 'question' ? '#2563eb' : item.type === 'response' ? '#9333ea' : '#ca8a04' }}>
                                                 {item.type === 'question' ? 'Q' : item.type === 'response' ? 'AI' : 'Live'}
                                             </span>
                                             <span className="align-middle whitespace-pre-wrap break-words">{item.content}</span>
@@ -129,9 +131,9 @@ export default function InterviewCopilotPanel({
                         {isGenerating && (
                             <div className="flex items-center gap-3 p-4">
                                 <div className="flex space-x-1">
-                                    <div className="w-2 h-2 bg-purple-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                                    <div className="w-2 h-2 bg-purple-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                                    <div className="w-2 h-2 bg-purple-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                                    <div className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: '#9333ea', animationDelay: '0ms' }}></div>
+                                    <div className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: '#9333ea', animationDelay: '150ms' }}></div>
+                                    <div className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: '#9333ea', animationDelay: '300ms' }}></div>
                                 </div>
                             </div>
                         )}

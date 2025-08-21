@@ -38,15 +38,18 @@ function ConversationHistory({ conversations, onClearHistory }: ConversationHist
         return visibleItems.map((item) => (
             <div
                 key={item.id}
-                className={`flex gap-3 p-3 rounded-lg transition-all hover:shadow-sm bg-[#404040] border-l-4 ${item.type === 'question' ? 'border-blue-500' : item.type === 'response' ? 'border-purple-500' : 'border-yellow-500'}`}
+                className={`flex gap-3 p-3 rounded-lg transition-all hover:shadow-sm bg-[#404040] border-l-4`}
+                style={{ borderLeftColor: item.type === 'question' ? '#3b82f6' : item.type === 'response' ? '#a855f7' : '#eab308', borderLeftWidth: 4 }}
             >
-                <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${item.type === 'question' ? 'bg-blue-500' : item.type === 'response' ? 'bg-purple-500' : 'bg-yellow-500'} text-white`}>
+                <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-white`}
+                    style={{ backgroundColor: item.type === 'question' ? '#3b82f6' : item.type === 'response' ? '#a855f7' : '#eab308' }}>
                     {item.type === 'question' ? <HelpCircle className="h-4 w-4" /> : item.type === 'response' ? <Bot className="h-4 w-4" /> : <MessageCircle className="h-4 w-4" />}
                 </div>
 
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                        <span className={`text-sm font-medium ${item.type === 'question' ? 'text-blue-400' : item.type === 'response' ? 'text-purple-400' : 'text-yellow-600'}`}>
+                        <span className={`text-sm font-medium`}
+                            style={{ color: item.type === 'question' ? '#60a5fa' : item.type === 'response' ? '#c084fc' : '#ca8a04' }}>
                             {item.type === 'question' ? 'Question' : item.type === 'response' ? 'GPT Response' : 'Live Transcript'}
                         </span>
                         <div className="flex items-center gap-1 text-xs text-gray-400">
@@ -57,7 +60,7 @@ function ConversationHistory({ conversations, onClearHistory }: ConversationHist
                     <p className="text-sm text-gray-200 leading-relaxed break-words">
                         {item.content}
                         {item.type === 'transcript' && !item.isFinalTranscript && (
-                            <span className="ml-2 text-xs text-yellow-500">(listening...)</span>
+                            <span className="ml-2 text-xs" style={{ color: '#eab308' }}>(listening...)</span>
                         )}
                     </p>
                 </div>

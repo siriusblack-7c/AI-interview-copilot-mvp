@@ -49,7 +49,8 @@ export default function SpeechRecognition({
                     {isResponsePlaying && onStopResponse && (
                         <button
                             onClick={onStopResponse}
-                            className="p-2 rounded-lg bg-red-500 hover:bg-red-600 text-white transition-all duration-200 transform hover:scale-105 shadow-lg shadow-red-500/25"
+                            className="p-2 rounded-lg text-white transition-all duration-200 transform hover:scale-105 shadow-lg"
+                            style={{ backgroundColor: '#ef4444', boxShadow: '0 10px 15px -3px rgb(239 68 68 / 0.25), 0 4px 6px -4px rgb(239 68 68 / 0.25)' }}
                             title="Stop Response"
                         >
                             <Square className="h-4 w-4" />
@@ -59,10 +60,8 @@ export default function SpeechRecognition({
                     {/* Microphone Button */}
                     <button
                         onClick={toggleListening}
-                        className={`p-3 rounded-full transition-all duration-200 transform hover:scale-105 ${isListening
-                            ? 'bg-blue-500 hover:bg-blue-600 text-white shadow-lg shadow-blue-500/25'
-                            : 'bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/25'
-                            }`}
+                        className={`p-3 rounded-full transition-all duration-200 transform hover:scale-105 text-white shadow-lg`}
+                        style={isListening ? { backgroundColor: '#3b82f6', boxShadow: '0 10px 15px -3px rgb(59 130 246 / 0.25), 0 4px 6px -4px rgb(59 130 246 / 0.25)' } : { backgroundColor: '#ef4444', boxShadow: '0 10px 15px -3px rgb(239 68 68 / 0.25), 0 4px 6px -4px rgb(239 68 68 / 0.25)' }}
                         title={isListening ? 'Stop Listening' : 'Start Listening'}
                     >
                         {!isListening ? (
@@ -76,8 +75,8 @@ export default function SpeechRecognition({
 
             <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                    <div className={`flex items-center gap-2 text-sm ${isListening ? 'text-green-600' : 'text-gray-400'}`}>
-                        <div className={`w-2 h-2 rounded-full ${isMicActive ? 'bg-green-500' : 'bg-red-500'} ${isListening ? 'animate-pulse' : ''}`} />
+                    <div className={`flex items-center gap-2 text-sm ${isListening ? '' : 'text-gray-400'}`} style={isListening ? { color: '#16a34a' } : undefined}>
+                        <div className={`w-2 h-2 rounded-full ${isListening ? 'animate-pulse' : ''}`} style={{ backgroundColor: isMicActive ? '#22c55e' : '#ef4444' }} />
                         {isMicActive
                             ? (isListening ? 'Listening for questions...' : 'Microphone ready - click to listen')
                             : 'Initializing microphone...'
@@ -86,15 +85,15 @@ export default function SpeechRecognition({
 
                     {/* Response Status */}
                     {isResponsePlaying && (
-                        <div className="flex items-center gap-2 text-xs text-green-600">
-                            <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                        <div className="flex items-center gap-2 text-xs" style={{ color: '#16a34a' }}>
+                            <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: '#22c55e' }} />
                             🔊 Speaking answer...
                         </div>
                     )}
                 </div>
 
                 {displayTranscript && (
-                    <div className="bg-[#2c2c2c] rounded-lg p-3 border-l-4 border-red-500">
+                    <div className="bg-[#2c2c2c] rounded-lg p-3 border-l-4" style={{ borderLeftColor: '#ef4444' }}>
                         <p className="text-sm text-gray-400 mb-1">Last heard:</p>
                         <p className="text-gray-200">{displayTranscript}</p>
                     </div>

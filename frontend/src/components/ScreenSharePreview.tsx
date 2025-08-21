@@ -79,7 +79,8 @@ export default function ScreenSharePreview({ onLeaveCall, onEndCall, isMock = fa
                     {!isMock && (
                         <button
                             onClick={startShare}
-                            className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-md flex items-center gap-2 transition-colors"
+                            className="text-white px-4 py-2 rounded-md flex items-center gap-2 transition-colors hover:opacity-90"
+                            style={{ backgroundColor: '#8b5cf6' }}
                         >
                             <MousePointerClickIcon className="w-4 h-4" />
                             Select

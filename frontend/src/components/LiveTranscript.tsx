@@ -92,7 +92,6 @@ function LiveTranscript({ segments }: LiveTranscriptProps) {
                     if (e.data?.type === 'rows') setRowsFromWorker(e.data.rows)
                 }
             } catch {
-                // worker might fail in some dev servers; fall back to main-thread logic
             }
         }
         try { workerRef.current?.postMessage({ type: 'build', segments }) } catch { }
@@ -102,11 +101,11 @@ function LiveTranscript({ segments }: LiveTranscriptProps) {
         <div className="bg-[#2c2c2c] rounded-md shadow-lg border border-gray-700 p-4 h-full overflow-y-auto" ref={scrollRef}>
             <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-semibold text-gray-200 flex items-center gap-2">
-                    <MessageCircle className="h-5 w-5 text-purple-500" />
+                    <MessageCircle className="h-5 w-5" style={{ color: '#a855f7' }} />
                     Live Transcript
                 </h3>
                 <div className="flex items-center gap-2">
-                    <span className="inline-block w-2 h-2 rounded-full bg-green-500" />
+                    <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: '#22c55e' }} />
                     <div className="text-xs text-gray-500">
                         Ready
                     </div>
@@ -118,7 +117,8 @@ function LiveTranscript({ segments }: LiveTranscriptProps) {
                 <div className="space-y-2">
                     {displayRows.map((r) => (
                         <div key={r.key} className="flex gap-2 items-start">
-                            <span className={`text-xs px-2 py-0.5 rounded-full ${r.speaker === 'me' ? 'bg-blue-600 text-white' : 'bg-green-600 text-white'}`}>
+                            <span className={`text-xs px-2 py-0.5 rounded-full text-white`}
+                                style={{ backgroundColor: r.speaker === 'me' ? '#2563eb' : '#16a34a' }}>
                                 {r.speaker === 'me' ? 'You' : 'Other'}
                             </span>
                             <span className="text-sm text-gray-200">

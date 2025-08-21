@@ -108,15 +108,16 @@ export const FileUpload: React.FC<FileUploadProps> = ({
                 </div>
 
                 {error && (
-                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <div className="p-3 bg-red-50 border rounded-lg" style={{ borderColor: '#fecaca' }}>
                         <div className="flex items-center gap-2">
-                            <AlertCircle className="h-4 w-4 text-red-600" />
-                            <span className="text-sm font-medium text-red-800">Upload Error</span>
+                            <AlertCircle className="h-4 w-4" style={{ color: '#dc2626' }} />
+                            <span className="text-sm font-medium" style={{ color: '#991b1b' }}>Upload Error</span>
                         </div>
-                        <p className="text-sm text-red-700 mt-1">{error}</p>
+                        <p className="text-sm mt-1" style={{ color: '#b91c1c' }}>{error}</p>
                         <button
                             onClick={clearError}
-                            className="text-xs text-red-600 hover:text-red-700 mt-2"
+                            className="text-xs mt-2 hover:underline"
+                            style={{ color: '#dc2626' }}
                         >
                             Dismiss
                         </button>
