@@ -2,8 +2,7 @@
 import axios from 'axios'
 import { io, type Socket } from 'socket.io-client'
 // import { BASE_URL } from '@/src/api'
-
-const BASE_URL = 'http://localhost:3000'
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
 const API_ENDPOINTS = {
     GetInterviewSessions: '/api/session/get',
     UpdateInterviewSession: '/api/session/update',
@@ -20,7 +19,7 @@ let debugBound = false
 export function getSocket(): Socket {
     if (socket && socket.connected) return socket
     if (!socket) {
-        socket = io('http://localhost:3000', { withCredentials: true, autoConnect: true })
+        socket = io(BASE_URL, { withCredentials: true, autoConnect: true })
         if (!debugBound) {
             debugBound = true
             try {
@@ -106,7 +105,7 @@ export async function fetchMainSession(sessionId: string): Promise<{ sessionId: 
 export async function registerSessionToBackend(payload: { sessionId: string; resume?: string; jobDescription?: string; context?: string; type?: 'live' | 'mock' | 'coding' }): Promise<void> {
     try {
         const sid = getOrCreateSessionId(payload.sessionId)
-        await api.post('http://localhost:3000/api/session/register', { ...payload, sessionId: sid })
+        await api.post(`${BASE_URL.replace(/\/$/, '')}/api/session/register`, { ...payload, sessionId: sid })
     } catch (error) {
         console.error('Error registering session to backend', error)
     }
