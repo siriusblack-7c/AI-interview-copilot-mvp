@@ -8,11 +8,6 @@ import { randomUUID } from 'node:crypto'
 
 type DeepgramSession = {
     live: LiveClient
-    isOpen: boolean
-    keepAliveTimer?: NodeJS.Timeout
-    heartbeatTimer?: NodeJS.Timeout
-    lastActivity: number
-    reconnectAttempts: number
 }
 
 function coerceToArrayBuffer(data: unknown): ArrayBufferLike | null {
@@ -62,7 +57,6 @@ function createDeepgramSession(socket: Socket, sessions: Map<string, DeepgramSes
         }
 
         const dg = createClient(env.DEEPGRAM_API_KEY)
-        // Always let Deepgram auto-detect the spoken language (no language hints)
         const live: LiveClient = dg.listen.live({
             model: env.DEEPGRAM_MODEL,
             interim_results: true,
@@ -71,72 +65,12 @@ function createDeepgramSession(socket: Socket, sessions: Map<string, DeepgramSes
             endpointing: env.DEEPGRAM_ENDPOINTING,
         } as any)
 
-        const session: DeepgramSession = {
-            live,
-            isOpen: false,
-            lastActivity: Date.now(),
-            reconnectAttempts: 0
-        }
+        const session: DeepgramSession = { live }
 
-        // Start keep-alive timer to prevent session timeout
-        const startKeepAlive = () => {
-            if (session.keepAliveTimer) clearInterval(session.keepAliveTimer)
-            session.keepAliveTimer = setInterval(() => {
-                if (session.isOpen) {
-                    try {
-                        // Send empty audio chunk to keep session alive
-                        const emptyBuffer = new ArrayBuffer(0)
-                        session.live.send(emptyBuffer)
-                        logger.debug({ socketId: socket.id }, 'Keep-alive sent to Deepgram')
-                    } catch (err) {
-                        logger.debug({ err }, 'Keep-alive send failed')
-                        // If keep-alive fails, try to restart the session
-                        if (session.isOpen) {
-                            logger.info({ socketId: socket.id }, 'Keep-alive failed, attempting session restart')
-                            try {
-                                session.live.finish?.()
-                                session.isOpen = false
-                                // The close event will trigger reconnection
-                            } catch (restartErr) {
-                                logger.error({ restartErr }, 'Failed to restart Deepgram session')
-                            }
-                        }
-                    }
-                }
-            }, 2000) // Every 2 seconds (more frequent to prevent timeouts)
-        }
-
-        // Start heartbeat monitoring to detect stale sessions
-        const startHeartbeat = () => {
-            if (session.heartbeatTimer) clearInterval(session.heartbeatTimer)
-            session.heartbeatTimer = setInterval(() => {
-                if (session.isOpen) {
-                    const now = Date.now()
-                    const timeSinceLastActivity = now - session.lastActivity
-
-                    // If no activity for 30 seconds, consider session stale
-                    if (timeSinceLastActivity > 120000) {
-                        logger.warn({ socketId: socket.id, timeSinceLastActivity }, 'Deepgram session appears stale, restarting')
-                        try {
-                            session.live.finish?.()
-                            session.isOpen = false
-                            // The close event will trigger reconnection
-                        } catch (heartbeatErr) {
-                            logger.error({ heartbeatErr }, 'Failed to restart stale Deepgram session')
-                        }
-                    }
-                }
-            }, 10000) // Check every 10 seconds
-        }
-
+        // Basic event wiring (no internal reconnection/keepalive/heartbeat logic)
         live.on(LiveTranscriptionEvents.Open, () => {
-            session.isOpen = true
-            session.reconnectAttempts = 0 // Reset reconnect attempts on successful open
-            session.lastActivity = Date.now()
             logger.info({ socketId: socket.id }, 'Deepgram session opened')
-            socket.emit('deepgram:open')
-            startKeepAlive()
-            startHeartbeat()
+            try { socket.emit('deepgram:open') } catch { }
         })
 
         live.on(LiveTranscriptionEvents.Transcript, async (evt: any) => {
@@ -145,30 +79,31 @@ function createDeepgramSession(socket: Socket, sessions: Map<string, DeepgramSes
                 const text: string = alternative?.transcript || ''
                 const isFinal: boolean = !!evt?.is_final
 
-                if (text) {
-                    socket.emit('deepgram:transcript', { text, isFinal })
-                    if (isFinal) {
-                        try {
-                            // Record interviewer utterance as part of chat memory
-                            chatMemory.appendInterviewer(socket.id, text)
-                            const detection = await openaiService.detectQuestionAndAnswer(text)
-                            if (detection.isQuestion && detection.question) {
-                                const id = randomUUID()
-                                socket.emit('detect:question', { id, question: detection.question, source: 'speech' })
-                            }
-                            // Emit proactive suggestions from final segment
-                            try {
-                                const suggestions = await openaiService.suggestNextQuestionsFromUtterance(text)
-                                if (suggestions.length) {
-                                    socket.emit('openai:chat:suggestions', suggestions)
-                                }
-                            } catch { }
-                        } catch (err: any) {
-                            logger.warn({ err }, 'openai detect failed for deepgram transcript')
-                        }
-                    }
-                } else {
+                if (!text) {
                     logger.warn({ socketId: socket.id, event: evt }, 'Empty transcript received from Deepgram')
+                    return
+                }
+
+                socket.emit('deepgram:transcript', { text, isFinal })
+                if (!isFinal) return
+
+                try {
+                    // Record interviewer utterance as part of chat memory
+                    chatMemory.appendInterviewer(socket.id, text)
+                    const detection = await openaiService.detectQuestionAndAnswer(text)
+                    if (detection.isQuestion && detection.question) {
+                        const id = randomUUID()
+                        socket.emit('detect:question', { id, question: detection.question, source: 'speech' })
+                    }
+                    // Emit proactive suggestions from final segment
+                    try {
+                        const suggestions = await openaiService.suggestNextQuestionsFromUtterance(text)
+                        if (suggestions.length) {
+                            socket.emit('openai:chat:suggestions', suggestions)
+                        }
+                    } catch { }
+                } catch (err: any) {
+                    logger.warn({ err }, 'openai detect failed for deepgram transcript')
                 }
             } catch (err) {
                 logger.error({ err }, 'deepgram transcript handler error')
@@ -177,108 +112,13 @@ function createDeepgramSession(socket: Socket, sessions: Map<string, DeepgramSes
 
         live.on(LiveTranscriptionEvents.Error, (err: any) => {
             logger.error({ err, socketId: socket.id }, 'Deepgram error')
-            socket.emit('deepgram:error', { message: err?.message || 'Deepgram error' })
-
-            // Try to recover from errors by restarting the session
-            if (session.isOpen && session.reconnectAttempts < 3) {
-                logger.info({ socketId: socket.id }, 'Attempting to recover from Deepgram error')
-                try {
-                    session.live.finish?.()
-                    session.isOpen = false
-                    // The close event will trigger reconnection
-                } catch (recoverErr) {
-                    logger.error({ recoverErr }, 'Failed to recover Deepgram session')
-                }
-            }
+            try { socket.emit('deepgram:error', { message: err?.message || 'Deepgram error' }) } catch { }
         })
 
         live.on(LiveTranscriptionEvents.Close, () => {
             logger.info({ socketId: socket.id }, 'Deepgram session closed')
-            if (session.keepAliveTimer) clearInterval(session.keepAliveTimer)
-            if (session.heartbeatTimer) clearInterval(session.heartbeatTimer)
-
-            // Don't remove session immediately - try to reconnect
-            session.isOpen = false
-
-            // Attempt to reconnect if socket is still connected
-            if (socket.connected && session.reconnectAttempts < 3) {
-                session.reconnectAttempts++
-                logger.info({ socketId: socket.id, attempt: session.reconnectAttempts }, 'Attempting to reconnect Deepgram session')
-
-                setTimeout(() => {
-                    if (socket.connected) {
-                        try {
-                            // Create new live client
-                            const dg = createClient(env.DEEPGRAM_API_KEY)
-                            const newLive: LiveClient = dg.listen.live({
-                                model: env.DEEPGRAM_MODEL,
-                                // Basic audio configuration - let Deepgram auto-detect
-                                interim_results: true,
-                                punctuate: true,
-                                smart_format: true,
-                                endpointing: env.DEEPGRAM_ENDPOINTING,
-                            } as any)
-
-                            // Replace the old live client
-                            session.live = newLive
-
-                            // Re-attach event handlers
-                            newLive.on(LiveTranscriptionEvents.Open, () => {
-                                session.isOpen = true
-                                session.reconnectAttempts = 0
-                                logger.info({ socketId: socket.id }, 'Deepgram session reconnected')
-                                socket.emit('deepgram:open')
-                                startKeepAlive()
-                            })
-
-                            newLive.on(LiveTranscriptionEvents.Transcript, async (evt: any) => {
-                                try {
-                                    const alternative = evt?.channel?.alternatives?.[0]
-                                    const text: string = alternative?.transcript || ''
-                                    const isFinal: boolean = !!evt?.is_final
-                                    if (text) {
-                                        socket.emit('deepgram:transcript', { text, isFinal })
-                                        if (isFinal) {
-                                            try {
-                                                const detection = await openaiService.detectQuestionAndAnswer(text)
-                                                if (detection.isQuestion && detection.question) {
-                                                    const id = randomUUID()
-                                                    socket.emit('detect:question', { id, question: detection.question, source: 'speech' })
-                                                }
-                                            } catch (err: any) {
-                                                logger.warn({ err }, 'openai detect failed for deepgram transcript')
-                                            }
-                                        }
-                                    }
-                                } catch (err) {
-                                    logger.error({ err }, 'deepgram transcript handler error')
-                                }
-                            })
-
-                            newLive.on(LiveTranscriptionEvents.Error, (err: any) => {
-                                logger.error({ err, socketId: socket.id }, 'Deepgram reconnection error')
-                                socket.emit('deepgram:error', { message: err?.message || 'Deepgram error' })
-                            })
-
-                            newLive.on(LiveTranscriptionEvents.Close, () => {
-                                logger.info({ socketId: socket.id }, 'Deepgram reconnected session closed')
-                                if (session.keepAliveTimer) clearInterval(session.keepAliveTimer)
-                                session.isOpen = false
-                            })
-
-                        } catch (err: any) {
-                            logger.error({ err, socketId: socket.id }, 'Failed to reconnect Deepgram session')
-                        }
-                    }
-                }, 1000) // Wait 1 second before reconnecting
-            } else {
-                // Max reconnection attempts reached or socket disconnected
-                if (session.reconnectAttempts >= 3) {
-                    logger.warn({ socketId: socket.id }, 'Max Deepgram reconnection attempts reached')
-                }
-                sessions.delete(socket.id)
-                socket.emit('deepgram:closed')
-            }
+            try { socket.emit('deepgram:closed') } catch { }
+            // No auto-reconnect here; lifecycle tied to socket
         })
 
         return session
@@ -293,7 +133,7 @@ export function registerDeepgramSocket(io: Server) {
     const sessions: Map<string, DeepgramSession> = new Map()
 
     io.on('connection', (socket: Socket) => {
-        // Automatically start Deepgram when socket connects
+        // Start Deepgram when socket connects
         const session = createDeepgramSession(socket, sessions)
         if (session) {
             sessions.set(socket.id, session)
@@ -301,19 +141,16 @@ export function registerDeepgramSocket(io: Server) {
 
         // Handle incoming audio chunks
         socket.on('deepgram:audio', (chunk: unknown) => {
-            const session = sessions.get(socket.id)
-            if (!session || !session.isOpen) {
-                logger.debug({ socketId: socket.id, hasSession: !!session, isOpen: session?.isOpen }, 'Ignoring audio chunk - session not ready')
+            const sess = sessions.get(socket.id)
+            if (!sess) {
+                logger.debug({ socketId: socket.id, hasSession: !!sess }, 'Ignoring audio chunk - no session')
                 return
             }
 
             try {
                 const ab = coerceToArrayBuffer(chunk)
                 if (ab && ab.byteLength > 0) {
-                    session.live.send(ab)
-                    // Update last activity timestamp
-                    session.lastActivity = Date.now()
-                    logger.debug({ socketId: socket.id, bytes: ab.byteLength }, 'Audio chunk sent to Deepgram')
+                    sess.live.send(ab)
                 } else {
                     logger.warn({
                         socketId: socket.id,
@@ -329,16 +166,10 @@ export function registerDeepgramSocket(io: Server) {
 
         // Handle disconnect - clean up session
         socket.on('disconnect', () => {
-            const session = sessions.get(socket.id)
-            if (session) {
+            const sess = sessions.get(socket.id)
+            if (sess) {
                 logger.info({ socketId: socket.id }, 'Socket disconnected, cleaning up Deepgram session')
-                if (session.keepAliveTimer) clearInterval(session.keepAliveTimer)
-                if (session.heartbeatTimer) clearInterval(session.heartbeatTimer)
-                try {
-                    session.live.finish?.()
-                } catch (err) {
-                    logger.debug({ err }, 'Error finishing Deepgram session')
-                }
+                try { sess.live.finish?.() } catch (err) { logger.debug({ err }, 'Error finishing Deepgram session') }
                 sessions.delete(socket.id)
             }
         })
