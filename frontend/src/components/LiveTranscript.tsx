@@ -149,14 +149,14 @@ function LiveTranscript({ segments }: LiveTranscriptProps) {
                                     style={{ backgroundColor: isUser ? '#2563eb' : '#16a34a' }}>
                                     {isUser ? 'You' : 'Other'}
                                 </span>
-                                <div className="text-sm text-gray-200 flex flex-row flex-wrap gap-1">
+                                <div className="text-sm text-gray-200 flex flex-row flex-wrap">
                                     {sentences.map((s, idx) => (
                                         <button
                                             key={`${r.key}-s-${idx}`}
                                             onClick={() => copyToClipboard(s)}
                                             title="Click to copy"
                                             className="cursor-pointer text-left hover:bg-[#3a3a3a] active:bg-[#4a4a4a] rounded px-1"
-                                            style={{ lineHeight: '1.6' }}
+                                            style={{ lineHeight: '1.5' }}
                                         >
                                             {s}
                                         </button>

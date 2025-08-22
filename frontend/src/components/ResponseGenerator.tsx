@@ -52,7 +52,7 @@ export default function ResponseGenerator({
 
     // Default suggestions to show when interview starts
     const DEFAULT_SUGGESTIONS = [
-        'Tell me about your self.',
+        'Tell me about yourself.',
         'Why do you want to leave your current role?',
         'Tell me about your day to day.',
     ];

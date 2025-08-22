@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Mic, MicOff } from 'lucide-react'
 import { useInterviewState } from '../context/InterviewStateContext'
@@ -35,15 +35,9 @@ export default function InterviewCopilotPanel({
 }: PanelProps) {
     const { isGenerating } = useInterviewState()
     const [autoScroll, setAutoScroll] = useState(true)
-    const scrollRef = useRef<HTMLDivElement>(null)
-
-    useEffect(() => {
-        if (!autoScroll) return
-        const el = scrollRef.current
-        if (el) el.scrollTop = el.scrollHeight
-    }, [autoScroll, conversations.length])
 
     const items = useMemo(() => conversations.slice(-1000), [conversations])
+    const lastItemId = items.length ? items[items.length - 1]?.id : undefined
 
     // Virtualizer for O(visible) rendering with dynamic row measurement
     const parentRef = useRef<HTMLDivElement>(null)
@@ -55,6 +49,38 @@ export default function InterviewCopilotPanel({
         getItemKey: (index) => items[index]?.id ?? String(index),
         measureElement: (el) => (el ? (el as HTMLElement).getBoundingClientRect().height : 0),
     })
+
+    const scrollToBottom = useCallback(() => {
+        if (!autoScroll) return
+        if (items.length === 0) return
+        try {
+            rowVirtualizer.scrollToIndex(items.length - 1, { align: 'end' as const })
+        } catch { }
+        // Fallback to native scroll in case measurement is delayed
+        try {
+            const el = parentRef.current
+            if (el) el.scrollTop = el.scrollHeight
+        } catch { }
+    }, [autoScroll, items.length, rowVirtualizer])
+
+    // Auto-scroll when the last item changes (ensures it runs after the question/response is added)
+    useEffect(() => {
+        if (!autoScroll) return
+        const raf1 = window.requestAnimationFrame(() => {
+            const raf2 = window.requestAnimationFrame(() => {
+                scrollToBottom()
+            })
+            return () => window.cancelAnimationFrame(raf2)
+        })
+        return () => window.cancelAnimationFrame(raf1)
+    }, [lastItemId, scrollToBottom, autoScroll])
+
+    // Auto-scroll immediately when toggling autoScroll on
+    useEffect(() => {
+        if (!autoScroll) return
+        const t = setTimeout(scrollToBottom, 0)
+        return () => clearTimeout(t)
+    }, [autoScroll, scrollToBottom])
 
     return (
         <div className="bg-[#2c2c2c] rounded-md shadow-lg border border-gray-700 p-4 flex flex-col justify-between h-full">
