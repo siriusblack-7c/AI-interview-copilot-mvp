@@ -13,6 +13,7 @@ const EnvSchema = z.object({
         .transform((v: string) => v.split(',').map((o: string) => o.trim()).filter(Boolean)),
     // Placeholders for later secrets (not required yet)
     OPENAI_API_KEY: z.string().optional(),
+    OPENAI_MODEL: z.string().default('gpt-4o-mini'),
     DEEPGRAM_API_KEY: z.string().optional(),
     DEEPGRAM_MODEL: z.string().default('nova-3'),
     DEEPGRAM_INTERIM_RESULTS: z.boolean().default(true),
@@ -28,6 +29,7 @@ export const env = EnvSchema.parse({
     PORT: process.env.PORT,
     ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    OPENAI_MODEL: process.env.OPENAI_MODEL,
     DEEPGRAM_API_KEY: process.env.DEEPGRAM_API_KEY,
     DEEPGRAM_MODEL: process.env.DEEPGRAM_MODEL,
     DEEPGRAM_INTERIM_RESULTS: process.env.DEEPGRAM_INTERIM_RESULTS,

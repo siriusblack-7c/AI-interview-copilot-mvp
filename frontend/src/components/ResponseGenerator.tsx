@@ -23,8 +23,12 @@ export default function ResponseGenerator({
     onMuteToggle: _onMuteToggle,
     isMuted: _isMuted = false,
     onManualQuestionSubmit,
+    // new: consume context fields for backend prompt grounding
+    resumeText,
+    jobDescription,
+    additionalContext,
 }: ResponseGeneratorProps) {
-    const { isListening, stopListening, startListening, setSystemListening, setGenerating, isSharing } = useInterviewState();
+    const { isListening, stopListening, startListening, setSystemListening, setGenerating, isSharing, settings } = useInterviewState();
     // const [currentResponse, setCurrentResponse] = useState('');
     const [typedQuestion, setTypedQuestion] = useState('');
     const pausedByTypingRef = useRef(false);
@@ -77,7 +81,15 @@ export default function ResponseGenerator({
                 openaiService
                     .streamAnswer({
                         question: incoming,
-                        context: undefined as any,
+                        context: {
+                            resume: resumeText,
+                            jobDescription,
+                            additionalContext,
+                            verbosity: settings?.verbosity,
+                            language: settings?.language,
+                            temperature: settings?.temperature,
+                            performance: settings?.performance,
+                        },
                         sessionId: sessionId,
                         onDelta: (delta) => {
                             responseTextRef.current += delta;

@@ -3,7 +3,7 @@ import axios from 'axios'
 import { io, type Socket } from 'socket.io-client'
 // import { BASE_URL } from '@/src/api'
 
-const BASE_URL = 'https://a6a5743a2139.ngrok-free.app'
+const BASE_URL = 'http://localhost:3000'
 const API_ENDPOINTS = {
     GetInterviewSessions: '/api/session/get',
     UpdateInterviewSession: '/api/session/update',
@@ -20,7 +20,7 @@ let debugBound = false
 export function getSocket(): Socket {
     if (socket && socket.connected) return socket
     if (!socket) {
-        socket = io('https://a6a5743a2139.ngrok-free.app', { withCredentials: true, autoConnect: true })
+        socket = io('http://localhost:3000', { withCredentials: true, autoConnect: true })
         if (!debugBound) {
             debugBound = true
             try {
@@ -37,6 +37,21 @@ export function getSocket(): Socket {
 
 export function getApiBaseUrl(): string {
     return BASE_URL
+}
+
+function getOrCreateSessionId(sessionId?: string): string {
+    const trimmed = (sessionId || '').trim()
+    if (trimmed) return trimmed
+    try {
+        const KEY = 'mock:sessionId'
+        const existing = localStorage.getItem(KEY)
+        if (existing && existing.trim()) return existing.trim()
+        const generated = `mock-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+        localStorage.setItem(KEY, generated)
+        return generated
+    } catch {
+        return `mock-${Date.now()}`
+    }
 }
 
 export async function fetchSession(sessionId: string): Promise<{ sessionId: string; resume: string; jobDescription: string; context: string; specialization?: string; type?: string }> {
@@ -66,7 +81,8 @@ export async function updateSession(params: {
 
 
 export async function getNextMockQuestion(sessionId: string, lastAnswer?: string): Promise<string> {
-    const resp = await api.post('/api/session/mock/next-question', { sessionId, lastAnswer })
+    const sid = getOrCreateSessionId(sessionId)
+    const resp = await api.post('/api/session/mock/next-question', { sessionId: sid, lastAnswer })
     return String(resp.data?.question || '')
 }
 
@@ -88,5 +104,10 @@ export async function fetchMainSession(sessionId: string): Promise<{ sessionId: 
 
 
 export async function registerSessionToBackend(payload: { sessionId: string; resume?: string; jobDescription?: string; context?: string; type?: 'live' | 'mock' | 'coding' }): Promise<void> {
-    await api.post('https://a6a5743a2139.ngrok-free.app/api/session/register', payload)
+    try {
+        const sid = getOrCreateSessionId(payload.sessionId)
+        await api.post('http://localhost:3000/api/session/register', { ...payload, sessionId: sid })
+    } catch (error) {
+        console.error('Error registering session to backend', error)
+    }
 }

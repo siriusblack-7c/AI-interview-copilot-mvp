@@ -115,7 +115,7 @@ function createDeepgramSession(socket: Socket, sessions: Map<string, DeepgramSes
                     const timeSinceLastActivity = now - session.lastActivity
 
                     // If no activity for 30 seconds, consider session stale
-                    if (timeSinceLastActivity > 30000) {
+                    if (timeSinceLastActivity > 120000) {
                         logger.warn({ socketId: socket.id, timeSinceLastActivity }, 'Deepgram session appears stale, restarting')
                         try {
                             session.live.finish?.()

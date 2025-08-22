@@ -20,6 +20,31 @@ function LiveTranscript({ segments }: LiveTranscriptProps) {
     const workerRef = useRef<Worker | null>(null)
     const [rowsFromWorker, setRowsFromWorker] = useState<{ key: string; speaker: SpeakerId; text: string; interim?: string }[] | null>(null)
 
+    // Added: sentence splitting and copy helper
+    const splitIntoSentences = (text: string): string[] => {
+        const normalized = (text || '').replace(/\s+/g, ' ').trim()
+        if (!normalized) return []
+        const matches = normalized.match(/[^.!?。？！…।]+[.!?。？！…।]+|[^.!?。？！…।]+$/g)
+        return (matches || [normalized]).map(s => s.trim()).filter(Boolean)
+    }
+
+    const copyToClipboard = async (text: string) => {
+        try {
+            await navigator.clipboard.writeText(text)
+        } catch {
+            try {
+                const ta = document.createElement('textarea')
+                ta.value = text
+                ta.style.position = 'fixed'
+                ta.style.left = '-9999px'
+                document.body.appendChild(ta)
+                ta.select()
+                document.execCommand('copy')
+                document.body.removeChild(ta)
+            } catch { }
+        }
+    }
+
     // Build display rows: all finalized utterances (merged by consecutive speaker), plus one latest interim
     const finalizedRows: { key: string; speaker: SpeakerId; text: string; interim?: string }[] = []
     for (const s of segments) {
@@ -115,18 +140,32 @@ function LiveTranscript({ segments }: LiveTranscriptProps) {
                 <p className="text-sm text-gray-500">Live transcript will appear here.</p>
             ) : (
                 <div className="space-y-2">
-                    {displayRows.map((r) => (
-                        <div key={r.key} className="flex gap-2 items-start">
-                            <span className={`text-xs px-2 py-0.5 rounded-full text-white`}
-                                style={{ backgroundColor: r.speaker === 'me' ? '#2563eb' : '#16a34a' }}>
-                                {r.speaker === 'me' ? 'You' : 'Other'}
-                            </span>
-                            <span className="text-sm text-gray-200">
-                                {r.text}
-                                {r.interim ? <span className="italic text-gray-400"> {r.interim}</span> : null}
-                            </span>
-                        </div>
-                    ))}
+                    {displayRows.map((r) => {
+                        const isUser = r.speaker === 'me'
+                        const sentences = splitIntoSentences(r.text)
+                        return (
+                            <div key={r.key} className="flex gap-2 items-start">
+                                <span className={`text-xs px-2 py-0.5 rounded-full text-white`}
+                                    style={{ backgroundColor: isUser ? '#2563eb' : '#16a34a' }}>
+                                    {isUser ? 'You' : 'Other'}
+                                </span>
+                                <div className="text-sm text-gray-200 flex flex-row flex-wrap gap-1">
+                                    {sentences.map((s, idx) => (
+                                        <button
+                                            key={`${r.key}-s-${idx}`}
+                                            onClick={() => copyToClipboard(s)}
+                                            title="Click to copy"
+                                            className="cursor-pointer text-left hover:bg-[#3a3a3a] active:bg-[#4a4a4a] rounded px-1"
+                                            style={{ lineHeight: '1.6' }}
+                                        >
+                                            {s}
+                                        </button>
+                                    ))}
+                                    {r.interim ? <span className="italic text-gray-400"> {r.interim}</span> : null}
+                                </div>
+                            </div>
+                        )
+                    })}
                 </div>
             )}
         </div>

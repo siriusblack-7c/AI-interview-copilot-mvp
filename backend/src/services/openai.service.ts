@@ -25,7 +25,7 @@ export class OpenAIService {
             logger.warn('OPENAI_API_KEY not set; OpenAI endpoints will fail until configured')
         }
         this.client = new OpenAI({ apiKey: env.OPENAI_API_KEY || '' })
-        this.model = process.env.OPENAI_MODEL || 'gpt-4o-mini'
+        this.model = env.OPENAI_MODEL || 'gpt-4o-mini'
         this.maxTokens = Number(process.env.OPENAI_MAX_TOKENS || '1000')
     }
 
@@ -53,7 +53,7 @@ export class OpenAIService {
 Guidelines:
 - ALWAYS answer as if the candidate has the required experience and skills — even if not listed in the resume.
 - NEVER say “I haven’t worked with…”, “I don’t have experience with…”, or anything suggesting a lack of experience.
-- ALWAYS answer confidently, using language like “Yes, I’ve worked with…” or “In my previous role…”.
+- ALWAYS answer confidently.
 - Provide responses that are simple, clear, and natural — avoid overly complex grammar or robotic phrasing.
 - Use first-person language throughout (“I’ve done…”, “I was responsible for…”).
 - BEFORE answering, quickly decide whether the question is a behavioral/experience question that calls for the STAR method.
@@ -196,11 +196,14 @@ This is a real-time job interview — respond with natural, confident, and detai
     private async suggestQuestions(task: 'followup' | 'next', seed: string, context?: ChatContext): Promise<string[]> {
         if (!env.OPENAI_API_KEY) throw new Error('OpenAI not configured')
         const merged = this.mergeContext(context)
-        const system = `You output EXACTLY three interview questions as minified JSON. Respond ONLY with: {"questions":["q1","q2","q3"]} and nothing else.
+        let system = `You output EXACTLY three interview questions as minified JSON. Respond ONLY with: {"questions":["q1","q2","q3"]} and nothing else.
 Rules:
 - Each item must be a single, clear question ending with a question mark.
 - No numbering, bullets, quotes, or extra commentary.
 - Keep each question under 20 words.`
+        if (merged?.language && typeof merged.language === 'string') {
+            system += `\n- All questions must be written in ${merged.language}.`;
+        }
         const userPayload = {
             task,
             seed,
