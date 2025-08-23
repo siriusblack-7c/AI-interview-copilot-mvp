@@ -44,12 +44,10 @@ export default function ScreenSharePreview({ onLeaveCall, onEndCall, isMock = fa
         <div className="w-full flex flex-col items-center relative justify-center">
             <InterviewControlBar
                 timerSeconds={timer}
-                isSharing={isSharing}
                 onToggleShare={() => (isSharing ? stopShare() : startShare())}
                 onLeaveCall={async () => { try { if (isSharing) stopShare(); } finally { try { await onLeaveCall?.() } catch { } } }}
                 onEndCall={async () => { try { if (isSharing) stopShare(); } finally { try { await onEndCall?.() } catch { } } }}
                 onOpenSettings={() => setSettingsOpen(true)}
-                isMock={isMock}
             />
             <CopilotSettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 

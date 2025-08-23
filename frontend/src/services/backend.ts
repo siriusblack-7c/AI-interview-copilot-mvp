@@ -3,9 +3,10 @@ import axios from 'axios'
 import { io, type Socket } from 'socket.io-client'
 // import { BASE_URL } from '@/src/api'
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
+const AI_COPILOT_BASE_URL = import.meta.env.VITE_AI_COPILOT_BASE_URL || 'http://localhost:3000'
 const API_ENDPOINTS = {
-    GetInterviewSessions: '/api/session/get',
-    UpdateInterviewSession: '/api/session/update',
+    GetInterviewSessions: `${BASE_URL}/api/session/get`,
+    UpdateInterviewSession: `${BASE_URL}/api/session/update`,
 }
 
 export const api = axios.create({
@@ -19,7 +20,7 @@ let debugBound = false
 export function getSocket(): Socket {
     if (socket && socket.connected) return socket
     if (!socket) {
-        socket = io(BASE_URL, { withCredentials: true, autoConnect: true })
+        socket = io(AI_COPILOT_BASE_URL, { withCredentials: true, autoConnect: true })
         if (!debugBound) {
             debugBound = true
             try {
@@ -88,7 +89,7 @@ export async function getNextMockQuestion(sessionId: string, lastAnswer?: string
 // Direct call to main/basic backend from the frontend (no proxy through our backend)
 export async function fetchMainSession(sessionId: string): Promise<{ sessionId: string; resume: string; jobDescription: string; context: string; type?: string }> {
     if (!BASE_URL) throw new Error('BASE_URL not configured')
-    const url = `${BASE_URL.replace(/\/$/, '')}${API_ENDPOINTS.GetInterviewSessions}`
+    const url = `${API_ENDPOINTS.GetInterviewSessions}`
     const resp = await axios.post(url, { sessionId })
     const raw = resp.data?.session || resp.data || {}
     console.log(raw)

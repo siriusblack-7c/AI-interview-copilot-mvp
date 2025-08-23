@@ -25,6 +25,8 @@ export function createApp() {
 
                 // Allow specific origins for credentials mode
                 const allowedOrigins = [
+                    'https://ai-interview-copilot-mvp-rt9v.vercel.app',
+                    'http://localhost:5174',
                     'http://localhost:5173', // Vite dev server
                     'http://localhost:3000', // Local backend
                     'https://ai-interview-copilot-mvp.onrender.com', // Production backend

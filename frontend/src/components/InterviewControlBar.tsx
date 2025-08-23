@@ -4,15 +4,13 @@ import { useInterviewState } from '../context/InterviewStateContext'
 
 interface InterviewControlBarProps {
     timerSeconds: number
-    isSharing: boolean
     onToggleShare: () => void
     onOpenSettings?: () => void
     onLeaveCall?: () => void
     onEndCall?: () => void
-    isMock?: boolean
 }
 
-export default function InterviewControlBar({ timerSeconds, isSharing, onToggleShare, onOpenSettings, onLeaveCall, onEndCall, isMock = false }: InterviewControlBarProps) {
+export default function InterviewControlBar({ timerSeconds, onToggleShare, onOpenSettings, onLeaveCall, onEndCall }: InterviewControlBarProps) {
     const { isListening, toggleListening, isMicActive, isCameraOn } = useInterviewState()
     const [menuOpen, setMenuOpen] = useState(false as boolean)
     const menuRef = useRef<HTMLDivElement | null>(null)
@@ -40,8 +38,6 @@ export default function InterviewControlBar({ timerSeconds, isSharing, onToggleS
     }
     const mm = Math.floor(timerSeconds / 60).toString().padStart(2, '0')
     const ss = (timerSeconds % 60).toString().padStart(2, '0')
-
-    console.log(isSharing, isMock)
 
     return (
         <div className="w-full flex items-center justify-between px-2 py-2 flex-wrap gap-2">

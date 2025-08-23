@@ -10,6 +10,57 @@ type DeepgramSession = {
     live: LiveClient
 }
 
+type ReconnectState = {
+    attempts: number
+    timer: ReturnType<typeof setTimeout> | null
+}
+
+const reconnectState: Map<string, ReconnectState> = new Map()
+
+function scheduleDeepgramReconnect(socket: Socket, sessions: Map<string, DeepgramSession>) {
+    try {
+        if (!socket.connected) return
+
+        const state: ReconnectState = reconnectState.get(socket.id) || { attempts: 0, timer: null }
+        if (state.timer) return
+
+        state.attempts += 1
+        const base = 1000
+        const max = 10000
+        const jitterPct = 0.25
+        const expDelay = Math.min(base * Math.pow(2, state.attempts - 1), max)
+        const jitter = 1 + (Math.random() * 2 - 1) * jitterPct // 0.75 - 1.25
+        const delay = Math.floor(expDelay * jitter)
+
+        logger.info({ socketId: socket.id, attempt: state.attempts, delay }, 'Scheduling Deepgram reconnect')
+
+        state.timer = setTimeout(() => {
+            state.timer = null
+            try {
+                if (!socket.connected) return
+                const newSession = createDeepgramSession(socket, sessions)
+                if (newSession) {
+                    sessions.set(socket.id, newSession)
+                    reconnectState.delete(socket.id)
+                    logger.info({ socketId: socket.id }, 'Deepgram reconnected')
+                } else {
+                    // Retry again with increased backoff
+                    reconnectState.set(socket.id, state)
+                    scheduleDeepgramReconnect(socket, sessions)
+                }
+            } catch (err) {
+                logger.error({ err, socketId: socket.id }, 'Deepgram reconnect attempt failed unexpectedly')
+                reconnectState.set(socket.id, state)
+                scheduleDeepgramReconnect(socket, sessions)
+            }
+        }, delay)
+
+        reconnectState.set(socket.id, state)
+    } catch (err) {
+        logger.error({ err, socketId: socket.id }, 'Failed to schedule Deepgram reconnect')
+    }
+}
+
 function coerceToArrayBuffer(data: unknown): ArrayBufferLike | null {
     try {
         if (!data) {
@@ -70,6 +121,7 @@ function createDeepgramSession(socket: Socket, sessions: Map<string, DeepgramSes
         // Basic event wiring (no internal reconnection/keepalive/heartbeat logic)
         live.on(LiveTranscriptionEvents.Open, () => {
             logger.info({ socketId: socket.id }, 'Deepgram session opened')
+            try { reconnectState.delete(socket.id) } catch { }
             try { socket.emit('deepgram:open') } catch { }
         })
 
@@ -80,7 +132,7 @@ function createDeepgramSession(socket: Socket, sessions: Map<string, DeepgramSes
                 const isFinal: boolean = !!evt?.is_final
 
                 if (!text) {
-                    logger.warn({ socketId: socket.id, event: evt }, 'Empty transcript received from Deepgram')
+                    logger.warn({ socketId: socket.id}, 'Empty transcript received from Deepgram')
                     return
                 }
 
@@ -113,12 +165,17 @@ function createDeepgramSession(socket: Socket, sessions: Map<string, DeepgramSes
         live.on(LiveTranscriptionEvents.Error, (err: any) => {
             logger.error({ err, socketId: socket.id }, 'Deepgram error')
             try { socket.emit('deepgram:error', { message: err?.message || 'Deepgram error' }) } catch { }
+            try { sessions.delete(socket.id) } catch { }
+            scheduleDeepgramReconnect(socket, sessions)
         })
 
         live.on(LiveTranscriptionEvents.Close, () => {
             logger.info({ socketId: socket.id }, 'Deepgram session closed')
             try { socket.emit('deepgram:closed') } catch { }
-            // No auto-reconnect here; lifecycle tied to socket
+            try { sessions.delete(socket.id) } catch { }
+            if (socket.connected) {
+                scheduleDeepgramReconnect(socket, sessions)
+            }
         })
 
         return session
@@ -172,6 +229,11 @@ export function registerDeepgramSocket(io: Server) {
                 try { sess.live.finish?.() } catch (err) { logger.debug({ err }, 'Error finishing Deepgram session') }
                 sessions.delete(socket.id)
             }
+            const state = reconnectState.get(socket.id)
+            if (state?.timer) {
+                try { clearTimeout(state.timer) } catch { }
+            }
+            reconnectState.delete(socket.id)
         })
     })
 }

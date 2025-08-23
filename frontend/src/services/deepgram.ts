@@ -63,6 +63,7 @@ class DeepgramService {
             if (e.data && e.data.size > 0) {
                 try {
                     const ab = await e.data.arrayBuffer()
+                    console.log('[deepgram] audio', ab)
                     socket.emit('deepgram:audio', ab)
                 } catch { }
             }
