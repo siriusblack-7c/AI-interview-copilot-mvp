@@ -83,7 +83,7 @@ export async function updateSession(params: {
 
 export async function getNextMockQuestion(sessionId: string, lastAnswer?: string): Promise<string> {
     const sid = getOrCreateSessionId(sessionId)
-    const resp = await api.post('/api/session/mock/next-question', { sessionId: sid, lastAnswer })
+    const resp = await axios.post(`${AI_COPILOT_BASE_URL.replace(/\/$/, '')}/api/session/mock/next-question`, { sessionId: sid, lastAnswer })
     return String(resp.data?.question || '')
 }
 
