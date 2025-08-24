@@ -2,7 +2,7 @@
 import axios from 'axios'
 import { io, type Socket } from 'socket.io-client'
 // import { BASE_URL } from '@/src/api'
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001'
 const AI_COPILOT_BASE_URL = import.meta.env.VITE_AI_COPILOT_BASE_URL || 'http://localhost:3000'
 const API_ENDPOINTS = {
     GetInterviewSessions: `${BASE_URL}/api/session/get`,
@@ -18,6 +18,7 @@ let socket: Socket | null = null
 let debugBound = false
 
 export function getSocket(): Socket {
+    console.log(import.meta.env.VITE_AI_COPILOT_BASE_URL, AI_COPILOT_BASE_URL)
     if (socket && socket.connected) return socket
     if (!socket) {
         socket = io(AI_COPILOT_BASE_URL, { withCredentials: true, autoConnect: true })

@@ -81,8 +81,11 @@ function InterviewDashboard({ sessionId }: { sessionId: string }) {
     }, [sessionId]);
 
     useEffect(() => {
-        if (isSharing && textToSpeechRef.current) {
+        if (!textToSpeechRef.current) return;
+        if (isSharing) {
             textToSpeechRef.current.setMuted(true);
+        } else {
+            textToSpeechRef.current.setMuted(false);
         }
     }, [isSharing]);
 
@@ -209,17 +212,17 @@ function InterviewDashboard({ sessionId }: { sessionId: string }) {
     // Auto-start mock interview by fetching the first interviewer question
     useEffect(() => {
         if (sessionType !== 'mock') { mockStartedRef.current = false; return }
-        if (!sessionId) return
         if (mockStartedRef.current) return
         mockStartedRef.current = true
             ; (async () => {
                 try {
-                    const q = await getNextMockQuestion(sessionId, lastUserAnswerRef.current || undefined)
+                    const q = await getNextMockQuestion(sessionId || '', lastUserAnswerRef.current || undefined)
                     if (q) {
                         setCurrentQuestion(q)
                         addQuestion(q)
                         try { upsertTranscript({ speaker: 'them', text: q, isFinal: true }) } catch { }
-                        setInterviewerSpeech(q)
+                        const greeting = "Hello, let's begin your mock interview. ";
+                        setInterviewerSpeech(`${greeting}${q}`)
                     }
                 } catch { }
             })()
@@ -434,7 +437,9 @@ function InterviewDashboard({ sessionId }: { sessionId: string }) {
                                                 setCurrentQuestion(q)
                                                 addQuestion(q)
                                                 try { upsertTranscript({ speaker: 'them', text: q, isFinal: true }) } catch { }
-                                                setInterviewerSpeech(q)
+                                                const greeting = "Hello, let's begin your mock interview. ";
+                                                const firstStart = !currentQuestion;
+                                                setInterviewerSpeech(firstStart ? `${greeting}${q}` : q)
                                             }
                                         } catch { }
                                     }}
