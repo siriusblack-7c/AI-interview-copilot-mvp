@@ -8,10 +8,11 @@ interface InterviewControlBarProps {
     onOpenSettings?: () => void
     onLeaveCall?: () => void
     onEndCall?: () => void
+
 }
 
 export default function InterviewControlBar({ timerSeconds, onToggleShare, onOpenSettings, onLeaveCall, onEndCall }: InterviewControlBarProps) {
-    const { isListening, toggleListening, isMicActive, isCameraOn } = useInterviewState()
+    const { isListening, toggleListening, isMicActive, isCameraOn, isSharing } = useInterviewState()
     const [menuOpen, setMenuOpen] = useState(false as boolean)
     const menuRef = useRef<HTMLDivElement | null>(null)
 
@@ -71,33 +72,49 @@ export default function InterviewControlBar({ timerSeconds, onToggleShare, onOpe
                     {isListening ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
                 </button>
                 <div className="relative" ref={menuRef as any}>
-                    <button
-                        onClick={() => setMenuOpen((prev) => !prev)}
-                        className="ml-3 flex items-center gap-2 text-white text-xs px-3 py-2 rounded-md hover:opacity-90"
-                        style={{ backgroundColor: '#dc2626' }}
-                        title="End Interview"
-                    >
-                        <Phone className="w-4 h-4 rotate-[135deg]" />
-                        End Interview
-                        <ChevronDown className="w-4 h-4" />
-                    </button>
-                    {menuOpen && (
-                        <div className="absolute right-0 mt-2 w-44 rounded-lg bg-[#2c2c2c] border border-gray-700 shadow-lg p-2 z-20">
+                    {isSharing ? (
+                        <>
                             <button
-                                onClick={() => { setMenuOpen(false); (onLeaveCall || onToggleShare)() }}
-                                className="w-full flex items-center justify-between text-sm text-white hover:bg-[#3a3a3a] px-3 py-2 rounded-md"
+                                onClick={() => setMenuOpen((prev) => !prev)}
+                                className="ml-3 flex items-center gap-2 text-white text-xs px-3 py-2 rounded-md hover:opacity-90"
+                                style={{ backgroundColor: '#dc2626' }}
+                                title="End Interview"
+                                aria-label="End Interview"
                             >
-                                <span>Leave Call</span>
-                                <LogOut className="w-4 h-4" />
+                                <Phone className="w-4 h-4 rotate-[135deg]" />
+                                End Interview
+                                <ChevronDown className="w-4 h-4" />
                             </button>
-                            <button
-                                onClick={() => { setMenuOpen(false); (onEndCall || onToggleShare)() }}
-                                className="w-full flex items-center justify-between text-sm text-white hover:bg-[#3a3a3a] px-3 py-2 rounded-md mt-1"
-                            >
-                                <span>End Call</span>
-                                <PhoneOff className="w-4 h-4" style={{ color: '#f87171' }} />
-                            </button>
-                        </div>
+                            {menuOpen && (
+                                <div className="absolute right-0 mt-2 w-44 rounded-lg bg-[#2c2c2c] border border-gray-700 shadow-lg p-2 z-20">
+                                    <button
+                                        onClick={() => { setMenuOpen(false); (onLeaveCall || onToggleShare)() }}
+                                        className="w-full flex items-center justify-between text-sm text-white hover:bg-[#3a3a3a] px-3 py-2 rounded-md"
+                                    >
+                                        <span>Leave Call</span>
+                                        <LogOut className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                        onClick={() => { setMenuOpen(false); (onEndCall || onToggleShare)() }}
+                                        className="w-full flex items-center justify-between text-sm text-white hover:bg-[#3a3a3a] px-3 py-2 rounded-md mt-1"
+                                    >
+                                        <span>End Call</span>
+                                        <PhoneOff className="w-4 h-4" style={{ color: '#f87171' }} />
+                                    </button>
+                                </div>
+                            )}
+                        </>
+                    ) : (
+                        <button
+                            onClick={onToggleShare}
+                            className="ml-3 flex items-center gap-2 text-white text-xs px-3 py-2 rounded-md hover:opacity-90"
+                            style={{ backgroundColor: '#9333ea' }}
+                            title="Start Interview"
+                            aria-label="Start Interview"
+                        >
+                            <Phone className="w-4 h-4" />
+                            Start Interview
+                        </button>
                     )}
                 </div>
             </div>

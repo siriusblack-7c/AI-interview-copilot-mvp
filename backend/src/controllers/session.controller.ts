@@ -198,8 +198,8 @@ export async function registerSession(req: Request, res: Response, next: NextFun
             const jd = raw.jobDescription ?? raw.role ?? params.jobDescription ?? ''
             return typeof jd === 'string' ? jd : ''
         })()
-        const context = (() => {
-            const c = raw.context ?? params.context ?? ''
+        const additionalContext = (() => {
+            const c = raw.additionalContext ?? params.additionalContext ?? ''
             return typeof c === 'string' ? c : ''
         })()
         const type = (() => {
@@ -213,7 +213,7 @@ export async function registerSession(req: Request, res: Response, next: NextFun
             sessionId: sid,
             resume,
             jobDescription,
-            context,
+            additionalContext,
             type: type || prev?.type || 'live',
             updatedAt: new Date().toISOString(),
         }
@@ -221,9 +221,9 @@ export async function registerSession(req: Request, res: Response, next: NextFun
         openaiService.setDefaultContext({
             resume: normalized.resume,
             jobDescription: normalized.jobDescription,
-            additionalContext: normalized.context,
+            additionalContext: normalized.additionalContext,
         })
-        console.log('registerSession', { sessionId: sid, len: { resume: resume.length, jobDescription: jobDescription.length, context: context.length } })
+        console.log('registerSession', { sessionId: sid, len: { resume: resume.length, jobDescription: jobDescription.length, context: additionalContext                    .length } })
         res.json({ ok: true, data: normalized })
     } catch (err) {
         next(err)

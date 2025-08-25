@@ -67,7 +67,7 @@ Guidelines:
 - DO NOT ask the interviewer any questions — just respond confidently.
 - Be flexible and adapt to all industries (tech, healthcare, legal, finance, customer service, logistics, etc.).
 
-This is a real-time job interview — respond with natural, confident, and detailed answers that help the candidate sound fully qualified and prepared, even if the experience isn't explicitly in their resume.`
+Respond as if this is a real-time job interview: provide confident, detailed, and natural answers that make the candidate appear fully qualified and prepared, regardless of gaps in their resume.`
 
         if (merged?.resume) {
             const maxResumeLength = 50000
@@ -103,7 +103,12 @@ This is a real-time job interview — respond with natural, confident, and detai
             systemPrompt += `\n\nLanguage: Respond in ${merged.language}. Make phrasing natural for that locale/dialect.`
         }
 
-        systemPrompt += `\n\nContext: This is a live interview where the candidate is being asked questions in real time. Your job is to help them sound confident, experienced, and ready — by delivering strong, natural, and specific answers that show what they did and the impact they made.`
+        if (merged?.additionalContext && typeof merged.additionalContext === 'string') {
+            systemPrompt += `\n\nAdditional Context: ${merged.additionalContext} (This is important.)`
+        }
+
+        logger.info({ additionalContext: merged?.additionalContext }, 'System Prompt')
+
         return systemPrompt
     }
 

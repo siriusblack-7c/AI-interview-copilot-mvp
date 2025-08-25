@@ -5,12 +5,17 @@ import { io, type Socket } from 'socket.io-client'
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001'
 const AI_COPILOT_BASE_URL = import.meta.env.VITE_AI_COPILOT_BASE_URL || 'http://localhost:3000'
 const API_ENDPOINTS = {
-    GetInterviewSessions: `${BASE_URL}/api/session/get`,
-    UpdateInterviewSession: `${BASE_URL}/api/session/update`,
+    GetInterviewSessions: `/api/session/get`,
+    UpdateInterviewSession: `/api/session/update`,
 }
 
 export const api = axios.create({
     baseURL: BASE_URL,
+    withCredentials: true,
+})
+
+export const aiCopilotApi = axios.create({
+    baseURL: AI_COPILOT_BASE_URL,
     withCredentials: true,
 })
 
@@ -83,7 +88,7 @@ export async function updateSession(params: {
 
 export async function getNextMockQuestion(sessionId: string, lastAnswer?: string): Promise<string> {
     const sid = getOrCreateSessionId(sessionId)
-    const resp = await axios.post(`${AI_COPILOT_BASE_URL.replace(/\/$/, '')}/api/session/mock/next-question`, { sessionId: sid, lastAnswer })
+    const resp = await aiCopilotApi.post(`/api/session/mock/next-question`, { sessionId: sid, lastAnswer })
     return String(resp.data?.question || '')
 }
 
@@ -104,10 +109,10 @@ export async function fetchMainSession(sessionId: string): Promise<{ sessionId: 
 }
 
 
-export async function registerSessionToBackend(payload: { sessionId: string; resume?: string; jobDescription?: string; context?: string; type?: 'live' | 'mock' | 'coding' }): Promise<void> {
+export async function registerSessionToBackend(payload: { sessionId: string; resume?: string; jobDescription?: string; additionalContext?: string; type?: 'live' | 'mock' | 'coding' }): Promise<void> {
     try {
         const sid = getOrCreateSessionId(payload.sessionId)
-        await api.post(`${BASE_URL.replace(/\/$/, '')}/api/session/register`, { ...payload, sessionId: sid })
+        await aiCopilotApi.post(`/api/session/register`, { ...payload, sessionId: sid })
     } catch (error) {
         console.error('Error registering session to backend', error)
     }

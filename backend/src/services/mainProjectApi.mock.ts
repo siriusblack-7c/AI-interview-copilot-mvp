@@ -11,7 +11,7 @@ export async function fetchSessionFromMain(sessionId: string): Promise<SessionDa
         status: 'active',
         resume: '',
         jobDescription: '',
-        context: '',
+        additionalContext: '',
         type: 'mock',
         startedAt: new Date().toISOString(),
         createdAt: new Date().toISOString(),

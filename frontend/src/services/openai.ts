@@ -1,4 +1,4 @@
-import { api } from './backend'
+import { aiCopilotApi } from './backend'
 import { getSocket } from './backend'
 
 class OpenAIService {
@@ -11,7 +11,7 @@ class OpenAIService {
         context?: { resume?: string; jobDescription?: string; additionalContext?: string },
         sessionId?: string,
     ): Promise<string> {
-        const resp = await api.post('/api/openai/generate', { question, context, sessionId });
+        const resp = await aiCopilotApi.post('/api/openai/generate', { question, context, sessionId });
         const text = resp.data?.text || '';
         if (!text) throw new Error('No response generated from server');
         return text;
@@ -24,7 +24,7 @@ class OpenAIService {
         experienceLevel?: string,
         keySkills?: string[]
     ): Promise<string> {
-        const resp = await api.post('/api/openai/job-description', { jobTitle, industry, companyName, experienceLevel, keySkills });
+        const resp = await aiCopilotApi.post('/api/openai/job-description', { jobTitle, industry, companyName, experienceLevel, keySkills });
         const text = resp.data?.text || '';
         if (!text) throw new Error('No response generated from server');
         return text;
@@ -35,7 +35,7 @@ class OpenAIService {
         context?: { resume?: string; jobDescription?: string; additionalContext?: string },
         sessionId?: string,
     ): Promise<{ isQuestion: boolean; question: string | null; answer: string | null }> {
-        const resp = await api.post('/api/openai/detect', { utterance, context, sessionId });
+        const resp = await aiCopilotApi.post('/api/openai/detect', { utterance, context, sessionId });
         const { isQuestion, question, answer } = resp.data || {};
         return { isQuestion: !!isQuestion, question: question ?? null, answer: answer ?? null };
     }

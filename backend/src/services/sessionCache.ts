@@ -4,7 +4,7 @@ type SessionData = {
     status?: string
     resume: string
     jobDescription: string
-    context: string
+    additionalContext: string
     type?: 'live' | 'mock' | 'coding'
     startedAt?: string
     endedAt?: string

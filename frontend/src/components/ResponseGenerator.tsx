@@ -174,7 +174,6 @@ export default function ResponseGenerator({
             <div>
                 {suggestions.length > 0 && (
                     <div className="mt-4">
-                        <div className="text-xs text-gray-400 mb-2">Suggestions (click to ask):</div>
                         <div className="flex flex-wrap gap-2 w-full">
                             {suggestions.map((q, idx) => (
                                 <button

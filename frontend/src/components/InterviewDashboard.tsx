@@ -12,6 +12,7 @@ import useTranscriptBuffer from '../hooks/useTranscriptBuffer';
 import { getSocket, fetchSession, fetchMainSession } from '../services/backend';
 import { updateSession, getNextMockQuestion } from '../services/backend';
 import createAudioAttribution from '../utils/audioAttribution';
+import DocumentManager from './DocumentManager';
 // import ConversationHistory from './ConversationHistory';
 const ScreenSharePreview = lazy(() => import('./ScreenSharePreview'));
 const InterviewCopilotPanel = lazy(() => import('./InterviewCopilotPanel'));
@@ -28,7 +29,7 @@ function InterviewDashboard({ sessionId }: { sessionId: string }) {
     const [resumeText, setResumeText] = useState('');
     const [jobDescription, setJobDescription] = useState('');
     const [additionalContext, setAdditionalContext] = useState('');
-    const [sessionType, setSessionType] = useState<'live' | 'mock' | 'coding'>('live');
+    const [sessionType, setSessionType] = useState<'live' | 'mock'>('live');
 
     const textToSpeechRef = useRef<TextToSpeechRef>(null);
 
@@ -66,14 +67,14 @@ function InterviewDashboard({ sessionId }: { sessionId: string }) {
                 updateSession({ sessionId: sessionId || '', conversation_history: [] as any, status: 'active' })
                 setResumeText(data.resume || '');
                 setJobDescription(data.jobDescription || '');
-                setAdditionalContext(data.context || '');
+                setAdditionalContext(data.additionalContext || '');
                 try {
                     const t = (data as any).type || 'live'
                     setSessionType(t)
                     try { (window as any).__MOCK_INTERVIEW__ = t === 'mock' } catch { }
                 } catch { setSessionType('live') }
                 try {
-                    await registerSessionToBackend({ sessionId, resume: data.resume, jobDescription: data.jobDescription, context: data.context, type: (data as any).type })
+                    await registerSessionToBackend({ sessionId, resume: data.resume, jobDescription: data.jobDescription, additionalContext: data.additionalContext, type: (data as any).type })
                 } catch { }
             } catch { }
         })();
@@ -128,6 +129,22 @@ function InterviewDashboard({ sessionId }: { sessionId: string }) {
             }
         },
     });
+    // Persist context edits (resume, job description, additional context, type) to backend session cache
+    useEffect(() => {
+        if (!sessionId) return;
+        const timer = window.setTimeout(() => {
+            try {
+                registerSessionToBackend({
+                    sessionId,
+                    resume: resumeText,
+                    jobDescription,
+                    additionalContext: additionalContext,
+                    type: sessionType,
+                });
+            } catch { }
+        }, 300);
+        return () => { try { window.clearTimeout(timer) } catch { } };
+    }, [sessionId, resumeText, jobDescription, additionalContext, sessionType]);
 
     // Use Web Speech API output for 'me' to avoid needing a second Deepgram session
     // Push microphone interim/final to live transcript for fast local display
@@ -311,37 +328,17 @@ function InterviewDashboard({ sessionId }: { sessionId: string }) {
     }, []);
 
     return (
-        <div className="min-h-screen bg-[#1a1a1a] h-full max-h-[100vh] overflow-hidden from-blue-50 via-white to-purple-50">
+        <div className="min-h-screen bg-[#1a1a1a] h-full from-blue-50 via-white to-purple-50">
             {/* Main Content */}
             <div className="w-full max-h-full overflow-hidden mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <div ref={containerRef} className="flex flex-col lg:flex-row gap-8 lg:gap-0">
                     {/* Left Column */}
                     <div
-                        className="space-y-6 pr-1 min-w-[350px] max-w-[700px] h-[calc(100vh-45px)] flex flex-col justify-between"
+                        className="space-y-6 pr-1 min-w-[350px] lg:max-w-[700px] h-[calc(100vh-45px)] flex flex-col justify-between"
                         style={isDesktop ? { flex: `0 0 ${splitPercent}%` } : { width: '100%' }}
                     >
                         {/* Screen Share Preview (shown on top of voice input box while sharing) */}
                         <Suspense fallback={<div className="h-64 bg-[#2a2a2a] rounded-md animate-pulse" />}>
-                            {/* Mode Toggle */}
-                            <div className="w-full flex items-center justify-end gap-3">
-                                <div className="text-xs text-gray-300">Mode</div>
-                                <div className="inline-flex rounded-md overflow-hidden border border-gray-700">
-                                    <button
-                                        className={`px-3 py-1 text-xs ${sessionType === 'live' ? 'bg-green-600 text-white' : 'bg-[#2a2a2a] text-gray-300 hover:bg-[#3a3a3a]'}`}
-                                        onClick={() => setSessionType('live')}
-                                        aria-pressed={sessionType === 'live'}
-                                    >
-                                        Live
-                                    </button>
-                                    <button
-                                        className={`px-3 py-1 text-xs ${sessionType === 'mock' ? 'bg-purple-600 text-white' : 'bg-[#2a2a2a] text-gray-300 hover:bg-[#3a3a3a]'}`}
-                                        onClick={() => setSessionType('mock')}
-                                        aria-pressed={sessionType === 'mock'}
-                                    >
-                                        Mock
-                                    </button>
-                                </div>
-                            </div>
                             <ScreenSharePreview
                                 isMock={sessionType === 'mock'}
                                 onLeaveCall={async () => {
@@ -402,11 +399,11 @@ function InterviewDashboard({ sessionId }: { sessionId: string }) {
 
                     {/* Right Column */}
                     <div
-                        className="space-y-6 pl-1 h-[calc(100vh-45px)] flex flex-col justify-between"
+                        className="space-y-6 pl-1 lg:h-[calc(100vh-45px)] flex flex-col justify-between"
                         style={isDesktop ? { flex: `1 1 ${100 - splitPercent}%` } : { width: '100%' }}
                     >
                         {/* Copilot Panel: Conversation + Response Generator */}
-                        <Suspense fallback={<div className="min-h-[420px] h-full bg-[#2a2a2a] rounded-md animate-pulse" />}>
+                        <Suspense fallback={<div className="h-full bg-[#2a2a2a] rounded-md animate-pulse" />}>
                             <InterviewCopilotPanel
                                 conversations={conversations}
                                 onClearHistory={clearHistory}
@@ -424,6 +421,8 @@ function InterviewDashboard({ sessionId }: { sessionId: string }) {
                                     setCurrentQuestion(q);
                                     addQuestion(q);
                                 }}
+                                sessionType={sessionType}
+                                setSessionType={setSessionType}
                             />
                         </Suspense>
                         {sessionType === 'mock' && (
@@ -451,7 +450,17 @@ function InterviewDashboard({ sessionId }: { sessionId: string }) {
                         {/* OpenAI Configuration removed */}
                     </div>
                 </div>
-                {/* Document Manager removed: session-driven context only */}
+                {/* Document Manager */}
+                <div className="mt-4">
+                    <DocumentManager
+                        resumeText={resumeText}
+                        jobDescription={jobDescription}
+                        additionalContext={additionalContext}
+                        onResumeUpdate={setResumeText}
+                        onJobDescriptionUpdate={setJobDescription}
+                        onAdditionalContextUpdate={setAdditionalContext}
+                    />
+                </div>
             </div>
         </div>
     );

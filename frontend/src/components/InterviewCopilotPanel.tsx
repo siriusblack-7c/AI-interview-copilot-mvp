@@ -18,6 +18,8 @@ interface PanelProps {
     onMuteToggle?: (muted: boolean) => void
     isMuted?: boolean
     onManualQuestionSubmit?: (q: string) => void
+    sessionType: 'live' | 'mock'
+    setSessionType: (type: 'live' | 'mock') => void
 }
 
 export default function InterviewCopilotPanel({
@@ -32,10 +34,11 @@ export default function InterviewCopilotPanel({
     onMuteToggle,
     isMuted,
     onManualQuestionSubmit,
+    sessionType,
+    setSessionType,
 }: PanelProps) {
     const { isGenerating } = useInterviewState()
     const [autoScroll, setAutoScroll] = useState(true)
-
     const items = useMemo(() => conversations.slice(-1000), [conversations])
     const lastItemId = items.length ? items[items.length - 1]?.id : undefined
 
@@ -87,6 +90,26 @@ export default function InterviewCopilotPanel({
             <div className="flex flex-col mb-2">
                 <div className="flex flex-row justify-between gap-2">
                     <div className="text-xs text-gray-200">Interview Copilot</div>
+                    {/* Mode Toggle */}
+                    <div className="flex items-center justify-end gap-3">
+                        <div className="text-xs text-gray-300">Mode</div>
+                        <div className="inline-flex rounded-md overflow-hidden border border-gray-700">
+                            <button
+                                className={`px-3 py-1 text-xs ${sessionType === 'live' ? 'bg-green-600 text-white' : 'bg-[#2a2a2a] text-gray-300 hover:bg-[#3a3a3a]'}`}
+                                onClick={() => setSessionType('live')}
+                                aria-pressed={sessionType === 'live'}
+                            >
+                                Live
+                            </button>
+                            <button
+                                className={`px-3 py-1 text-xs ${sessionType === 'mock' ? 'bg-purple-600 text-white' : 'bg-[#2a2a2a] text-gray-300 hover:bg-[#3a3a3a]'}`}
+                                onClick={() => setSessionType('mock')}
+                                aria-pressed={sessionType === 'mock'}
+                            >
+                                Mock
+                            </button>
+                        </div>
+                    </div>
                     <div className="flex items-center gap-4">
                         <button
                             className={`w-8 h-8 rounded-full flex items-center justify-center ${!isMuted ? 'text-white' : 'bg-[#3a3a3a] text-gray-300'}`}
@@ -122,11 +145,11 @@ export default function InterviewCopilotPanel({
                 </div>
             </div>
 
-            <div className="flex flex-row gap-2 h-[calc(100vh-140px)]">
-                <div className="flex-1">
+            <div className="flex flex-col lg:flex-row gap-2 h-full">
+                <div className="flex-1 order-1 lg:order-1">
                     <div
                         ref={parentRef}
-                        className="flex-1 min-h-[calc(100vh-150px)] max-h-full bg-[#303030] border border-gray-700 rounded-md p-6 overflow-y-auto mb-2"
+                        className="flex-1 h-[42vh] sm:h-[48vh] md:h-[52vh] lg:h-[calc(100vh-150px)] max-h-full bg-[#303030] border border-gray-700 rounded-md p-4 sm:p-6 overflow-y-auto mb-2"
                     >
                         {items.length === 0 ? (
                             <div className="h-full w-full flex items-center justify-center text-sm text-gray-300 text-center">
@@ -166,13 +189,12 @@ export default function InterviewCopilotPanel({
 
                     </div>
                 </div>
-                <div className="max-w-[250px] min-w-[250px] h-full flex flex-col justify-between">
+                <div className="w-full lg:max-w-[280px] lg:min-w-[260px] h-auto lg:h-full flex flex-col justify-between order-2 lg:order-2">
                     {items.length > 0 && (
                         <div className="mt-4 flex justify-end">
                             <button onClick={onClearHistory} className="text-xs text-red-500 hover:text-red-400">Clear history</button>
                         </div>
                     )}
-                    <div className="mb-2 text-[10px] text-gray-400 uppercase tracking-wide">AI Response Generator</div>
 
                     <ResponseGenerator
                         question={question}
