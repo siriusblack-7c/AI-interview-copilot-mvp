@@ -108,7 +108,7 @@ export default function InterviewControlBar({ timerSeconds, onToggleShare, onOpe
                         <button
                             onClick={onToggleShare}
                             className="ml-3 flex items-center gap-2 text-white text-xs px-3 py-2 rounded-md hover:opacity-90"
-                            style={{ backgroundColor: '#9333ea' }}
+                            style={{ backgroundColor: '#22c55e' }}
                             title="Start Interview"
                             aria-label="Start Interview"
                         >
