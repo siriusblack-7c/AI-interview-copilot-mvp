@@ -58,33 +58,36 @@ export function registerClaudeSocket(io: Server) {
                         })
                     }
                 }
-                // kick off summarize + suggestions concurrently while immediately starting stream
-                ; (async () => {
-                    try {
-                        const SUMMARIZE_AFTER = 30
-                        const RECENT_KEEP = 10
-                        if (getAllHistory().length >= SUMMARIZE_AFTER) {
-                            const newSummary = await claudeService.generateInterviewResponse(
-                                `Summarize the conversation so far in <=1800 characters as compact bullet-like sentences without bullets.\nPrev:\n${summary}\n\nTranscript:\n${getAllHistory().map(h => `${h.role === 'interviewer' ? 'Interviewer' : 'User'}: ${h.content}`).join('\n')}`,
-                                context
-                            )
-                            if (typeof newSummary === 'string' && newSummary.trim()) {
-                                summary = newSummary.trim()
-                                chatMemory.pruneRecent(socket.id, RECENT_KEEP)
-                            }
-                        }
-                    } catch { }
-                })()
 
+                const perf = (context && context.performance) || 'quality'
+                if (perf !== 'speed') {
                     ; (async () => {
                         try {
-                            const suggestions = await claudeService.suggestFollowUpQuestions(question, context)
-                            if (suggestions.length) {
-                                append({ type: 'suggestions', data: suggestions })
-                                socket.emit('claude:chat:suggestions', suggestions)
+                            const SUMMARIZE_AFTER = 30
+                            const RECENT_KEEP = 10
+                            if (getAllHistory().length >= SUMMARIZE_AFTER) {
+                                const newSummary = await claudeService.generateInterviewResponse(
+                                    `Summarize the conversation so far in <=1800 characters as compact bullet-like sentences without bullets.\nPrev:\n${summary}\n\nTranscript:\n${getAllHistory().map(h => `${h.role === 'interviewer' ? 'Interviewer' : 'User'}: ${h.content}`).join('\n')}`,
+                                    context
+                                )
+                                if (typeof newSummary === 'string' && newSummary.trim()) {
+                                    summary = newSummary.trim()
+                                    chatMemory.pruneRecent(socket.id, RECENT_KEEP)
+                                }
                             }
                         } catch { }
                     })()
+
+                        ; (async () => {
+                            try {
+                                const suggestions = await claudeService.suggestFollowUpQuestions(question, context)
+                                if (suggestions.length) {
+                                    append({ type: 'suggestions', data: suggestions })
+                                    socket.emit('claude:chat:suggestions', suggestions)
+                                }
+                            } catch { }
+                        })()
+                }
 
                 for await (const delta of claudeService.streamChat(question, context, getHistory(), summary)) {
                     socket.emit('claude:chat:delta', delta)
