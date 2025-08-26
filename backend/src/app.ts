@@ -8,6 +8,7 @@ import { rateLimiter } from './middlewares/rateLimit'
 import { errorHandler } from './middlewares/error'
 import { logger } from './utils/logger'
 import healthRouter from './routes/health.routes'
+import claudeRouter from './routes/claude.routes'
 import openaiRouter from './routes/openai.routes'
 import filesRouter from './routes/files.routes'
 import sessionRouter from './routes/session.routes'
@@ -26,6 +27,7 @@ export function createApp() {
                 // Allow specific origins for credentials mode
                 const allowedOrigins = [
                     'https://ai-interview-copilot-mvp-rt9v.vercel.app',
+                    'https://staging.robo-apply.com',
                     'http://localhost:5174',
                     'http://localhost:5173', // Vite dev server
                     'http://localhost:3000', // Local backend
@@ -54,6 +56,8 @@ export function createApp() {
     app.use(morgan('combined'))
 
     app.use('/health', healthRouter)
+    app.use('/api/claude', claudeRouter)
+    // Keep legacy OpenAI routes mounted for backward compatibility if any clients still call them
     app.use('/api/openai', openaiRouter)
     app.use('/api/files', filesRouter)
     app.use('/api/session', sessionRouter)

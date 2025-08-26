@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Settings, Key, CheckCircle, AlertCircle, Info } from 'lucide-react';
-import openaiService from '../services/openai';
+import claudeService from '../services/claude';
 
 interface OpenAIConfigProps {
     onConfigChange?: (configured: boolean) => void;
@@ -13,7 +13,7 @@ export default function OpenAIConfig({ onConfigChange }: OpenAIConfigProps) {
     const [testingConnection, setTestingConnection] = useState(false);
 
     useEffect(() => {
-        const configured = openaiService.isConfigured();
+        const configured = claudeService.isConfigured();
         setIsConfigured(configured);
         if (!configured) {
             setShowConfig(true);
@@ -23,8 +23,7 @@ export default function OpenAIConfig({ onConfigChange }: OpenAIConfigProps) {
 
     const handleSaveConfig = () => {
         if (apiKey.trim()) {
-            // Update the OpenAI service with the new API key
-            // openaiService.updateApiKey(apiKey.trim());
+            // Update the Claude service with the new API key (server-managed)
 
             // Update local state
             setIsConfigured(true);
@@ -39,8 +38,8 @@ export default function OpenAIConfig({ onConfigChange }: OpenAIConfigProps) {
     const testConnection = async () => {
         setTestingConnection(true);
         try {
-            await openaiService.generateInterviewResponse('Test question: What is your name?');
-            alert('✅ OpenAI connection successful!');
+            await claudeService.generateInterviewResponse('Test question: What is your name?');
+            alert('✅ Claude connection successful!');
         } catch (error: any) {
             alert(`❌ Connection failed: ${error.message}`);
         } finally {
@@ -48,14 +47,14 @@ export default function OpenAIConfig({ onConfigChange }: OpenAIConfigProps) {
         }
     };
 
-    const usageInfo = openaiService.getUsageInfo();
+    const usageInfo = claudeService.getUsageInfo();
 
     return (
         <div className="bg-[#2c2c2c] rounded-md shadow-lg border border-gray-500 p-6">
             <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-gray-200 flex items-center gap-2">
                     <Settings className="h-5 w-5 text-blue-600" />
-                    OpenAI Configuration
+                    Claude Configuration
                 </h3>
                 <button
                     onClick={() => setShowConfig(!showConfig)}
@@ -73,13 +72,13 @@ export default function OpenAIConfig({ onConfigChange }: OpenAIConfigProps) {
                 {isConfigured ? (
                     <>
                         <CheckCircle className="h-4 w-4" />
-                        <span className="text-sm font-medium">OpenAI Connected</span>
+                        <span className="text-sm font-medium">Claude Connected</span>
                         <span className="text-xs">({usageInfo.model} • {usageInfo.source})</span>
                     </>
                 ) : (
                     <>
                         <AlertCircle className="h-4 w-4" />
-                        <span className="text-sm font-medium">OpenAI Not Configured</span>
+                        <span className="text-sm font-medium">Claude Not Configured</span>
                     </>
                 )}
             </div>
@@ -92,7 +91,7 @@ export default function OpenAIConfig({ onConfigChange }: OpenAIConfigProps) {
                             <div className="text-sm text-blue-200">
                                 <p className="font-medium mb-1">If this plugin is not working, please try the following:</p>
                                 <ol className="list-decimal list-inside space-y-1 text-xs">
-                                    <li>Get API key from <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="underline">OpenAI Platform</a></li>
+                                    <li>Get API key from <a href="https://console.anthropic.com/" target="_blank" rel="noopener noreferrer" className="underline">Anthropic Console</a></li>
                                     <li>Enter your API key below and click "Save Configuration"</li>
                                     <li>Restart the plugin</li>
                                 </ol>
@@ -102,7 +101,7 @@ export default function OpenAIConfig({ onConfigChange }: OpenAIConfigProps) {
 
                     <div>
                         <label className="block text-sm font-medium text-gray-200 mb-2">
-                            OpenAI API Key
+                            Claude API Key
                         </label>
                         <div className="flex gap-2">
                             <div className="relative flex-1">

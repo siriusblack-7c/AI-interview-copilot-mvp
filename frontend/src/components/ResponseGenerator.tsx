@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import openaiService from '../services/openai';
+import claudeService from '../services/claude';
 import { useInterviewState } from '../context/InterviewStateContext';
 
 interface ResponseGeneratorProps {
@@ -78,7 +78,7 @@ export default function ResponseGenerator({
             setGenerating(true);
 
             const donePromise = new Promise<string>((resolve, reject) => {
-                openaiService
+                claudeService
                     .streamAnswer({
                         question: incoming,
                         context: {

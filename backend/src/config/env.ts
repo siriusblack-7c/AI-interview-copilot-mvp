@@ -14,6 +14,8 @@ const EnvSchema = z.object({
     // Placeholders for later secrets (not required yet)
     OPENAI_API_KEY: z.string().optional(),
     OPENAI_MODEL: z.string().default('gpt-4o-mini'),
+    ANTHROPIC_API_KEY: z.string().optional(),
+    ANTHROPIC_MODEL: z.string().default('claude-3-5-haiku-20241022'),
     DEEPGRAM_API_KEY: z.string().optional(),
     DEEPGRAM_MODEL: z.string().default('nova-3'),
     DEEPGRAM_INTERIM_RESULTS: z.boolean().default(true),
@@ -30,6 +32,8 @@ export const env = EnvSchema.parse({
     ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     OPENAI_MODEL: process.env.OPENAI_MODEL,
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+    ANTHROPIC_MODEL: process.env.ANTHROPIC_MODEL,
     DEEPGRAM_API_KEY: process.env.DEEPGRAM_API_KEY,
     DEEPGRAM_MODEL: process.env.DEEPGRAM_MODEL,
     DEEPGRAM_INTERIM_RESULTS: process.env.DEEPGRAM_INTERIM_RESULTS,

@@ -18,6 +18,7 @@ const ScreenSharePreview = lazy(() => import('./ScreenSharePreview'));
 const InterviewCopilotPanel = lazy(() => import('./InterviewCopilotPanel'));
 
 
+
 function InterviewDashboard({ sessionId }: { sessionId: string }) {
     // const navigate = useNavigate()
     const [currentQuestion, setCurrentQuestion] = useState('');
@@ -35,7 +36,7 @@ function InterviewDashboard({ sessionId }: { sessionId: string }) {
 
     // Custom hooks
     const { addQuestion, addResponse, conversations, clearHistory } = useConversation();
-    const { isSharing, systemStream, stopShare } = useInterviewState();
+    const { isSharing, systemStream, stopShare, settings } = useInterviewState();
 
     // Decouple system-audio transcription from mic listening: system stays active while sharing
 
@@ -212,11 +213,17 @@ function InterviewDashboard({ sessionId }: { sessionId: string }) {
                     } else {
                         try {
                             const socket = getSocket();
-                            socket.emit('openai:detect:utterance', {
+                            socket.emit('claude:detect:utterance', {
                                 utterance: micLive.text,
                                 source: 'speech',
                                 sessionId: sessionId || undefined,
-                                context: undefined,
+                                context: {
+                                    verbosity: settings?.verbosity,
+                                    language: settings?.language,
+                                    temperature: settings?.temperature,
+                                    performance: settings?.performance,
+                                    additionalContext: additionalContext,
+                                },
                             });
                         } catch { }
                     }

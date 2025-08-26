@@ -5,7 +5,7 @@ import { Server as IOServer } from 'socket.io'
 import { createApp } from './app'
 import { env } from './config/env'
 import { logger } from './utils/logger'
-import { registerOpenAISocket } from './sockets/openai.socket'
+import { registerClaudeSocket } from './sockets/claude.socket'
 import { registerDeepgramSocket } from './sockets/deepgram.socket'
 
 const app = createApp()
@@ -20,6 +20,7 @@ const io = new IOServer(server, {
             // Allow specific origins for credentials mode
             const allowedOrigins = [
                 'https://ai-interview-copilot-mvp-rt9v.vercel.app',
+                'https://staging.robo-apply.com',
                 'http://localhost:5174',
                 'http://localhost:5173', // Vite dev server
                 'http://localhost:3000', // Local backend
@@ -45,7 +46,7 @@ io.on('connection', (socket: any) => {
 })
 
 registerDeepgramSocket(io)
-registerOpenAISocket(io)
+registerClaudeSocket(io)
 
 const listener = server.listen(env.PORT || 3000, () => {
     const { port } = listener.address() as AddressInfo

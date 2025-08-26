@@ -1,5 +1,3 @@
-// OpenAI SDK is dynamically required to avoid a hard dependency when using Claude only
-import { Blob } from 'buffer'
 import { env } from '../config/env'
 import { logger } from '../utils/logger'
 
@@ -7,43 +5,41 @@ export type ChatContext = {
     resume?: string | undefined
     jobDescription?: string | undefined
     additionalContext?: string | undefined
-    // User preferences coming from FE settings
     verbosity?: 'concise' | 'default' | 'lengthy'
     language?: string
     temperature?: 'low' | 'default' | 'high'
     performance?: 'speed' | 'quality'
 }
 
-export class OpenAIService {
+export class ClaudeService {
     private client: any | null
     private model: string
     private maxTokens: number
     private defaultContext: ChatContext | undefined
 
     constructor() {
-        if (!env.OPENAI_API_KEY) {
-            logger.warn('OPENAI_API_KEY not set; OpenAI endpoints will fail until configured')
+        if (!env.ANTHROPIC_API_KEY) {
+            logger.warn('ANTHROPIC_API_KEY not set; Claude endpoints will fail until configured')
         }
         this.client = null
-        this.model = env.OPENAI_MODEL || 'gpt-4o-mini'
-        this.maxTokens = Number(process.env.OPENAI_MAX_TOKENS || '1000')
+        this.model = env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-latest'
+        this.maxTokens = Number(process.env.ANTHROPIC_MAX_TOKENS || '1000')
     }
 
     private ensureClient(): any {
         if (this.client) return this.client
         try {
             // eslint-disable-next-line @typescript-eslint/no-var-requires
-            const OpenAI = require('openai')
-            const Ctor = OpenAI.default || OpenAI
-            this.client = new Ctor({ apiKey: env.OPENAI_API_KEY || '' })
+            const Anthropic = require('@anthropic-ai/sdk')
+            const Ctor = Anthropic.default || Anthropic
+            this.client = new Ctor({ apiKey: env.ANTHROPIC_API_KEY || '' })
             return this.client
         } catch (err) {
-            throw new Error('OpenAI SDK not installed. Please install openai or disable legacy OpenAI routes')
+            throw new Error('Claude SDK not installed. Please install @anthropic-ai/sdk')
         }
     }
 
     setDefaultContext(ctx: { resume?: string; jobDescription?: string; additionalContext?: string }): void {
-        // Keep empty strings as provided; do not coerce to undefined
         this.defaultContext = {
             resume: typeof ctx.resume === 'string' ? ctx.resume : '',
             jobDescription: typeof ctx.jobDescription === 'string' ? ctx.jobDescription : '',
@@ -82,24 +78,28 @@ Guidelines:
 
 Respond as if this is a real-time job interview: provide confident, detailed, and natural answers that make the candidate appear fully qualified and prepared, regardless of gaps in their resume.`
 
+        // Dynamically trim heavy context based on performance and verbosity for latency control
+        const perf = merged?.performance || 'quality'
+        const verbosity = merged?.verbosity || 'default'
+        const resumeLimit = perf === 'speed' || verbosity === 'concise' ? 1500 : (perf === 'quality' || verbosity === 'lengthy' ? 12000 : 6000)
+        const jdLimit = perf === 'speed' || verbosity === 'concise' ? 800 : (perf === 'quality' || verbosity === 'lengthy' ? 5000 : 2500)
+
         if (merged?.resume) {
-            const maxResumeLength = 50000
+            const maxResumeLength = resumeLimit
             systemPrompt += `\n\nCANDIDATE'S RESUME CONTEXT:\n${merged.resume.substring(0, maxResumeLength)}${merged.resume.length > maxResumeLength ? '...' : ''}\n\nInstructions: Use details from the resume whenever possible to ground the response in real experience. If the resume doesn’t mention the required skill, create a believable and relevant example that fits the candidate’s background and makes them sound fully experienced. Make the example specific and detailed — not generic.`
         } else {
             systemPrompt += `\n\nIMPORTANT: Since no resume was provided, assume the candidate has all relevant experience. Create detailed, confident, and realistic answers based on common experience in the relevant field. Make answers sound specific and grounded, even if made up.`
         }
 
         if (merged?.jobDescription) {
-            const maxJobDescLength = 30000
+            const maxJobDescLength = jdLimit
             systemPrompt += `\n\nTARGET JOB DESCRIPTION:\n${merged.jobDescription.substring(0, maxJobDescLength)}${merged.jobDescription.length > maxJobDescLength ? '...' : ''}\n\nInstructions: Tailor the response to align with the job description. Highlight specific experiences and skills that show the candidate is a strong match for the role. Emphasize results and impact.`
         } else {
             systemPrompt += `\n\nIMPORTANT: Since no specific job description was provided, adapt your response to show the candidate is qualified for typical responsibilities and expectations within the relevant industry or role. Keep examples focused and results-oriented.`
         }
 
-        // Apply user preferences
-        const verbosity = merged?.verbosity || 'default'
         if (verbosity === 'concise') {
-            systemPrompt += `\n\nStyle: Prefer brevity. Limit answers to 1–2 sentences that directly address the question.`
+            systemPrompt += `\n\nStyle: Prefer brevity. Strictly limit the final answer to 1–2 complete sentences that directly address the question. Do not add extra explanation.`
         } else if (verbosity === 'lengthy') {
             systemPrompt += `\n\nStyle: Provide more depth than usual. Aim for 4–6 sentences with concrete details and outcomes.`
         } else {
@@ -121,67 +121,89 @@ Respond as if this is a real-time job interview: provide confident, detailed, an
         }
 
         logger.info({ additionalContext: merged?.additionalContext }, 'System Prompt')
-
         return systemPrompt
     }
 
     private computeTemperature(context?: ChatContext): number {
         const merged = this.mergeContext(context)
-        const base = (() => {
-            const pref = merged?.temperature || 'default'
-            if (pref === 'low') return 0.2
-            if (pref === 'high') return 0.95
-            return 0.7
-        })()
-        // Nudge for performance preference
-        if (merged?.performance === 'speed') return Math.max(0.1, base - 0.1)
-        if (merged?.performance === 'quality') return Math.min(1.0, base + 0.05)
-        return base
+        const pref = merged?.temperature || 'default'
+        if (pref === 'low') return 0.2
+        if (pref === 'high') return 0.95
+        return 0.7
     }
 
     private computeMaxTokens(context?: ChatContext): number {
         const merged = this.mergeContext(context)
         const base = this.maxTokens
-        if (merged?.verbosity === 'concise' || merged?.performance === 'speed') return Math.min(base, 500)
-        if (merged?.verbosity === 'lengthy' || merged?.performance === 'quality') return Math.min(Math.max(base, 800), base)
+        if (merged?.verbosity === 'concise' || merged?.performance === 'speed') return Math.min(base, 300)
+        if (merged?.verbosity === 'lengthy' || merged?.performance === 'quality') return Math.min(Math.max(base, 1000), base)
         return base
     }
 
-    async generateInterviewResponse(question: string, context?: ChatContext): Promise<string> {
-        if (!env.OPENAI_API_KEY) throw new Error('OpenAI not configured')
+    private computeTopP(context?: ChatContext): number {
         const merged = this.mergeContext(context)
-        const userPrompt = `Interview Question: "${question}"\n\nPlease provide a confident, natural, and professional interview response that shows the candidate is fully qualified. Use simple grammar and speak in a realistic tone. Make the example specific and believable, and if possible, include a result or outcome.`
+        if (merged?.performance === 'speed') return 0.6
+        if (merged?.performance === 'quality') return 0.95
+        return 0.8
+    }
+
+    private enforceVerbosity(text: string, context?: ChatContext): string {
+        const merged = this.mergeContext(context)
+        const mode = merged?.verbosity || 'default'
+        if (mode !== 'concise') return text
+        const normalized = String(text || '')
+        // Split by sentence end punctuation preserving order
+        const parts = normalized
+            .split(/(?<=[.!?])\s+/)
+            .map(s => s.trim())
+            .filter(Boolean)
+        const limited = parts.slice(0, 2).join(' ')
+        return limited || normalized
+    }
+
+    async generateInterviewResponse(question: string, context?: ChatContext): Promise<string> {
+        if (!env.ANTHROPIC_API_KEY) throw new Error('Claude not configured')
+        const merged = this.mergeContext(context)
+        const userPrompt = `Interview Question: "${question}"\n\nPlease provide a confident, natural, and professional interview response that shows the candidate is fully qualified. Use simple grammar and speak in a realistic tone. Make the example specific and believable, and if possible, include a result or outcome. If the style is concise, strictly respond with 1–2 sentences.`
         const client = this.ensureClient()
-        const resp = await client.chat.completions.create({
+        const resp = await client.messages.create({
             model: this.model,
-            messages: [
-                { role: 'system', content: this.buildSystemPrompt(merged) },
-                { role: 'user', content: userPrompt },
-            ],
             max_tokens: this.computeMaxTokens(merged),
             temperature: this.computeTemperature(merged),
-        })
-        return resp.choices[0]?.message?.content?.trim() || ''
+            top_p: this.computeTopP(merged) as any,
+            system: this.buildSystemPrompt(merged),
+            messages: [
+                { role: 'user', content: userPrompt },
+            ],
+        }) as any
+        const content = resp?.content?.map((c: any) => c?.text || '').join('') || ''
+        return this.enforceVerbosity(content.trim(), merged)
     }
 
     async detectQuestionAndAnswer(utterance: string, context?: ChatContext): Promise<{ isQuestion: boolean; question: string | null; answer: string | null }> {
-        if (!env.OPENAI_API_KEY) throw new Error('OpenAI not configured')
+        if (!env.ANTHROPIC_API_KEY) throw new Error('Claude not configured')
         const merged = this.mergeContext(context)
         const system = `You analyze a short user utterance and decide if it is a question addressed to an interview assistant. If it is a question, answer it concisely (2-4 sentences) using any provided context. Respond ONLY as minified JSON with keys: isQuestion (boolean), question (string|null), answer (string|null). Do not include any extra text.`
+        const payload = {
+            utterance,
+            context: merged || null,
+            schema: { isQuestion: 'boolean', question: 'string|null', answer: 'string|null' }
+        }
         const client = this.ensureClient()
-        const resp = await client.chat.completions.create({
+        const resp = await client.messages.create({
             model: this.model,
-            messages: [
-                { role: 'system', content: system },
-                { role: 'user', content: JSON.stringify({ utterance, context: merged || null, schema: { isQuestion: 'boolean', question: 'string|null', answer: 'string|null' } }) },
-            ],
-            response_format: { type: 'json_object' } as any,
             max_tokens: 800,
             temperature: 0.4,
-        })
+            top_p: 0.6 as any,
+            system,
+            messages: [
+                { role: 'user', content: JSON.stringify(payload) },
+            ],
+        }) as any
         let parsed: any = {}
         try {
-            parsed = JSON.parse(resp.choices[0]?.message?.content?.trim() || '{}')
+            const text = resp?.content?.map((c: any) => c?.text || '').join('') || ''
+            parsed = JSON.parse(text.trim() || '{}')
         } catch { parsed = {} }
         return {
             isQuestion: !!parsed.isQuestion,
@@ -194,11 +216,9 @@ Respond as if this is a real-time job interview: provide confident, detailed, an
         const cleaned = raw
             .map((q) => (typeof q === 'string' ? q : ''))
             .map((q) => q.trim())
-            // remove bullets/numbering and surrounding quotes
             .map((q) => q.replace(/^[-*\d.\)\s]+/, ''))
-            .map((q) => q.replace(/^(["'“”‘’])+|(["'“”‘’])+$/g, ''))
+            .map((q) => q.replace(/^( ["'“”‘’])+|(["'“”‘’])+$/g, ''))
             .filter(Boolean)
-            // ensure ends with a question mark
             .map((q) => {
                 const withoutTrailingPunct = q.replace(/[.!\s]+$/, '')
                 return /\?$/.test(withoutTrailingPunct) ? withoutTrailingPunct : `${withoutTrailingPunct}?`
@@ -214,7 +234,7 @@ Respond as if this is a real-time job interview: provide confident, detailed, an
     }
 
     private async suggestQuestions(task: 'followup' | 'next', seed: string, context?: ChatContext): Promise<string[]> {
-        if (!env.OPENAI_API_KEY) throw new Error('OpenAI not configured')
+        if (!env.ANTHROPIC_API_KEY) throw new Error('Claude not configured')
         const merged = this.mergeContext(context)
         let system = `You output EXACTLY three interview questions as minified JSON. Respond ONLY with: {"questions":["q1","q2","q3"]} and nothing else.
 Rules:
@@ -222,36 +242,30 @@ Rules:
 - No numbering, bullets, quotes, or extra commentary.
 - Keep each question under 20 words.`
         if (merged?.language && typeof merged.language === 'string') {
-            system += `\n- All questions must be written in ${merged.language}.`;
+            system += `\n- All questions must be written in ${merged.language}.`
         }
-        const userPayload = {
-            task,
-            seed,
-            context: merged || null
-        }
+        const userPayload = { task, seed, context: merged || null }
         const client = this.ensureClient()
-        const resp = await client.chat.completions.create({
+        const resp = await client.messages.create({
             model: this.model,
-            messages: [
-                { role: 'system', content: system },
-                { role: 'user', content: JSON.stringify(userPayload) },
-            ],
-            response_format: { type: 'json_object' } as any,
             max_tokens: 400,
             temperature: 0.3,
-        })
-        const content = resp.choices[0]?.message?.content?.trim() || ''
+            top_p: 0.7 as any,
+            system,
+            messages: [
+                { role: 'user', content: JSON.stringify(userPayload) },
+            ],
+        }) as any
+        const content = (resp?.content?.map((c: any) => c?.text || '').join('') || '').trim()
         let questions: string[] = []
         try {
             const parsed = JSON.parse(content)
             const arr = Array.isArray(parsed?.questions) ? parsed.questions : []
             questions = this.sanitizeQuestions(arr)
         } catch {
-            // Fallback: try splitting by lines if JSON somehow not returned
             const arr = content.split(/\r?\n/).map((l: string) => l.trim()).filter(Boolean)
             questions = this.sanitizeQuestions(arr)
         }
-        // Ensure exactly three by padding with sensible generic follow-ups if needed
         const fallbacks = [
             'Could you provide a specific example?',
             'What was the outcome or impact?',
@@ -274,152 +288,70 @@ Rules:
         return this.suggestQuestions('next', utterance, context)
     }
 
-    /**
-     * Public wrapper to generate interviewer-style questions from a seed signal.
-     * Useful for mock interviewer flows to produce the next question from
-     * the user's last answer or any other seed text.
-     */
-    async generateInterviewerQuestionsFromSeed(seed: string, context?: ChatContext): Promise<string[]> {
-        return this.suggestQuestions('next', seed, context)
-    }
-
-    /**
-     * Generates opening interviewer questions (first prompts) grounded in the
-     * merged context (resume, job description, additional context). Returns up to three
-     * concise, clear questions; caller can pick the first or randomize.
-     */
-    async generateOpeningInterviewerQuestions(context?: ChatContext): Promise<string[]> {
-        const merged = this.mergeContext(context)
-        // Build a seed that nudges the model to start an interview appropriately.
-        const parts: string[] = []
-        if (merged?.jobDescription) parts.push('Based on the target job description')
-        if (merged?.resume) parts.push('and the candidate\'s resume')
-        const basis = parts.length ? `${parts.join(' ')}.` : 'Without specific resume or job description.'
-        const seed = `${basis} Start a mock job interview and propose strong opening interview questions to assess fit, experience, and impact.`
-        return this.suggestQuestions('next', seed, merged)
-    }
-
-    async generateJobDescription(params: {
-        jobTitle: string
-        industry?: string | undefined
-        companyName?: string | undefined
-        companySize?: string | undefined
-        experienceLevel?: string | undefined
-        keySkills?: string[] | undefined
-    }): Promise<string> {
-        if (!env.OPENAI_API_KEY) throw new Error('OpenAI not configured')
-        const { jobTitle, industry, companyName, companySize, experienceLevel, keySkills } = params
-        const systemPrompt = `You are an expert HR professional and job description writer. Create a comprehensive, professional job description based on the provided information.
-
-Guidelines:
-- Write in a clear, professional tone
-- Include all standard job description sections (Overview, Responsibilities, Requirements, Benefits)
-- Make it realistic and detailed
-- Use industry-standard terminology
-- Include both required and preferred qualifications
-- Add a competitive salary range when appropriate
-- Include company culture and work environment details
-- Make it engaging and attractive to candidates
-- Keep it comprehensive but not overly lengthy (aim for 300-500 words)`
-        let userPrompt = `Create a detailed job description for: ${jobTitle}`
-        if (industry) userPrompt += `\nIndustry: ${industry}`
-        if (companyName) userPrompt += `\nCompany Name: ${companyName}`
-        if (experienceLevel) userPrompt += `\nExperience Level: ${experienceLevel}`
-        if (keySkills && keySkills.length > 0) userPrompt += `\nKey Skills Required: ${keySkills.join(', ')}`
-        userPrompt += `\n\nPlease provide a complete job description with the following structure:\n1. Job Title and Overview\n2. Key Responsibilities\n3. Required Qualifications\n4. Preferred Qualifications\n5. Benefits and Perks\n6. Company Culture/Work Environment`
-        const resp = await this.client.chat.completions.create({
-            model: this.model,
-            messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: userPrompt },
-            ],
-            max_tokens: 1500,
-            temperature: 0.7,
-        })
-        return resp.choices[0]?.message?.content?.trim() || ''
-    }
-
     async *streamChat(
         question: string,
         context?: ChatContext,
         history?: { role: 'user' | 'interviewer'; content: string }[],
         summary?: string,
     ): AsyncGenerator<string> {
-        if (!env.OPENAI_API_KEY) throw new Error('OpenAI not configured')
+        if (!env.ANTHROPIC_API_KEY) throw new Error('Claude not configured')
         const merged = this.mergeContext(context)
         const userPrompt = `Interview Question: "${question}"`
-        const messages: any[] = [
-            { role: 'system', content: this.buildSystemPrompt(merged) },
-        ]
+        const pieces: string[] = []
+        pieces.push(this.buildSystemPrompt(merged))
         if (summary && typeof summary === 'string' && summary.trim()) {
-            messages.push({ role: 'system', content: `Conversation Summary so far (use for context): ${summary.trim()}` })
+            pieces.push(`Conversation Summary so far (use for context): ${summary.trim()}`)
         }
-        // Include short history for lightweight memory (only human dialogue)
         if (Array.isArray(history) && history.length > 0) {
             for (const m of history.slice(-12)) {
                 const prefix = m.role === 'interviewer' ? 'Interviewer' : 'User'
-                messages.push({ role: 'user', content: `${prefix}: ${m.content}` })
+                pieces.push(`${prefix}: ${m.content}`)
             }
         }
-        messages.push({ role: 'user', content: userPrompt })
+        const preamble = pieces.join('\n')
         const client = this.ensureClient()
-        const stream = await client.chat.completions.create({
+        const stream = await (client.messages.stream as any)({
             model: this.model,
-            messages,
             max_tokens: this.computeMaxTokens(merged),
             temperature: this.computeTemperature(merged),
-            stream: true,
-        }) as any
-        for await (const part of stream) {
-            const delta = part?.choices?.[0]?.delta?.content
-            if (delta) {
-                yield delta as string
-            }
-        }
-    }
-
-    async summarizeHistory(
-        history: { role: 'user' | 'interviewer'; content: string }[],
-        prevSummary: string,
-        context?: ChatContext,
-    ): Promise<string> {
-        if (!env.OPENAI_API_KEY) throw new Error('OpenAI not configured')
-        const merged = this.mergeContext(context)
-        const system = `You are a note-taker that creates compact rolling summaries of an interview coaching conversation.
-Rules:
-- Output 8-12 concise bullet-like sentences in plain text (no bullets), <= 1800 characters total.
-- Capture facts the assistant should remember (name, role, preferences, constraints, prior answers, follow-ups asked).
-- Do not include filler, meta instructions, or placeholders.`
-        const payload: any = {
-            previous_summary: prevSummary || '',
-            transcript: history.map(h => `${h.role === 'interviewer' ? 'Interviewer' : 'User'}: ${h.content}`).join('\n'),
-        }
-        const client = this.ensureClient()
-        const resp = await client.chat.completions.create({
-            model: this.model,
+            top_p: this.computeTopP(merged) as any,
+            system: preamble,
             messages: [
-                { role: 'system', content: system },
-                { role: 'user', content: JSON.stringify(payload) },
+                { role: 'user', content: userPrompt },
             ],
-            max_tokens: 512,
-            temperature: 0.2,
         })
-        return resp.choices[0]?.message?.content?.trim() || prevSummary || ''
-    }
-
-    async transcribeAudioBuffer(fileBuffer: Buffer, mimeType: string): Promise<string> {
-        if (!env.OPENAI_API_KEY) throw new Error('OpenAI not configured')
-        const blob: any = new Blob([fileBuffer], { type: mimeType || 'application/octet-stream' })
-        const client = this.ensureClient()
-        const result: any = await (client as any).audio.transcriptions.create({
-            file: blob,
-            model: process.env.OPENAI_TRANSCRIBE_MODEL || 'whisper-1',
-        })
-        const text: string = result?.text || result?.data?.text || ''
-        return text
+        let emitted = ''
+        let allowEmit = true
+        const concise = (this.mergeContext(context)?.verbosity || 'default') === 'concise'
+        for await (const event of stream) {
+            try {
+                const type = (event as any)?.type
+                if (type === 'content_block_delta') {
+                    const delta = (event as any)?.delta?.text
+                    if (delta) {
+                        emitted += String(delta)
+                        if (concise) {
+                            // Count sentence boundaries; once we reach 2, stop emitting further
+                            const sentenceParts = emitted.split(/(?<=[.!?])\s+/).filter(Boolean)
+                            if (sentenceParts.length >= 2) {
+                                if (allowEmit) {
+                                    const two = sentenceParts.slice(0, 2).join(' ')
+                                    // Only emit up to two sentences once
+                                    yield two
+                                    allowEmit = false
+                                }
+                                // Skip emitting the rest; continue consuming stream silently
+                                continue
+                            }
+                        }
+                        if (allowEmit) yield String(delta)
+                    }
+                }
+            } catch { }
+        }
     }
 }
 
-export const openaiService = new OpenAIService()
+export const claudeService = new ClaudeService()
 
 

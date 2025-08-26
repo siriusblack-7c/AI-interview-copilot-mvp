@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { Sparkles, Loader2, Wand2, X } from 'lucide-react';
-import openaiService from '../../services/openai';
+import claudeService from '../../services/claude';
 
 interface JobDescriptionGeneratorProps {
     onJobDescriptionGenerated: (description: string) => void;
@@ -34,7 +34,7 @@ export default function JobDescriptionGenerator({
                 .map(skill => skill.trim())
                 .filter(skill => skill.length > 0);
 
-            const description = await openaiService.generateJobDescription(
+            const description = await claudeService.generateJobDescription(
                 jobTitle.trim(),
                 industry.trim() || undefined,
                 companyName.trim() || undefined,
@@ -120,12 +120,12 @@ export default function JobDescriptionGenerator({
                         </div>
 
                     </div>
-                   
+
                     {/* Experience Level */}
                     <div>
                         <label className="block text-sm font-medium text-gray-300 mb-2">
                             Experience Level
-                        </label>    
+                        </label>
                         <select
                             value={experienceLevel}
                             onChange={(e) => setExperienceLevel(e.target.value)}

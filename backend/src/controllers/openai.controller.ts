@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express'
 import { z } from 'zod'
+// Deprecated: OpenAI HTTP controller retained temporarily for backward compatibility.
 import { openaiService } from '../services/openai.service'
 import { sessionCache } from '../services/sessionCache'
 import type { Request as ExpressRequest } from 'express'

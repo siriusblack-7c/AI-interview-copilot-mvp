@@ -2,7 +2,7 @@ import type { Server, Socket } from 'socket.io'
 import { createClient, LiveClient, LiveTranscriptionEvents } from '@deepgram/sdk'
 import { env } from '../config/env'
 import { logger } from '../utils/logger'
-import { openaiService } from '../services/openai.service'
+import { claudeService } from '../services/claude.service'
 import { chatMemory } from './chatMemory'
 import { randomUUID } from 'node:crypto'
 
@@ -132,7 +132,7 @@ function createDeepgramSession(socket: Socket, sessions: Map<string, DeepgramSes
                 const isFinal: boolean = !!evt?.is_final
 
                 if (!text) {
-                    logger.warn({ socketId: socket.id}, 'Empty transcript received from Deepgram')
+                    logger.warn({ socketId: socket.id }, 'Empty transcript received from Deepgram')
                     return
                 }
 
@@ -142,20 +142,20 @@ function createDeepgramSession(socket: Socket, sessions: Map<string, DeepgramSes
                 try {
                     // Record interviewer utterance as part of chat memory
                     chatMemory.appendInterviewer(socket.id, text)
-                    const detection = await openaiService.detectQuestionAndAnswer(text)
+                    const detection = await claudeService.detectQuestionAndAnswer(text)
                     if (detection.isQuestion && detection.question) {
                         const id = randomUUID()
                         socket.emit('detect:question', { id, question: detection.question, source: 'speech' })
                     }
                     // Emit proactive suggestions from final segment
                     try {
-                        const suggestions = await openaiService.suggestNextQuestionsFromUtterance(text)
+                        const suggestions = await claudeService.suggestNextQuestionsFromUtterance(text)
                         if (suggestions.length) {
-                            socket.emit('openai:chat:suggestions', suggestions)
+                            socket.emit('claude:chat:suggestions', suggestions)
                         }
                     } catch { }
                 } catch (err: any) {
-                    logger.warn({ err }, 'openai detect failed for deepgram transcript')
+                    logger.warn({ err }, 'claude detect failed for deepgram transcript')
                 }
             } catch (err) {
                 logger.error({ err }, 'deepgram transcript handler error')

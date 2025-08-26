@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express'
 import { z } from 'zod'
 import { sessionCache, type SessionData } from '../services/sessionCache'
 import { fetchSessionFromMain, completeSessionOnMain, generateMockInterviewerQuestion } from '../services/mainProjectApi.mock'
-import { openaiService } from '../services/openai.service'
+import { claudeService } from '../services/claude.service'
 import { chatMemory } from '../sockets/chatMemory'
 
 const idSchema = z.object({ sessionId: z.string().min(1) })
@@ -40,8 +40,8 @@ export async function getSession(req: Request, res: Response, next: NextFunction
             context: typeof data.context === 'string' ? data.context : '',
         }
         sessionCache.set(sessionId, normalized)
-        // Set on OpenAI service immediately
-        openaiService.setDefaultContext({
+        // Set on Claude service immediately
+        claudeService.setDefaultContext({
             resume: normalized.resume,
             jobDescription: normalized.jobDescription,
             additionalContext: normalized.context,
@@ -146,7 +146,7 @@ export async function nextMockQuestion(req: Request, res: Response, next: NextFu
             const prev: string[] = Array.isArray((record as any).lastMockQuestions) ? (record as any).lastMockQuestions : []
 
             // Try to get up to three options and pick the first not in prev
-            const options = await openaiService.generateInterviewerQuestionsFromSeed(seed, {
+            const options = await claudeService.suggestNextQuestionsFromUtterance(seed, {
                 resume: record.resume,
                 jobDescription: record.jobDescription,
                 additionalContext: record.context,
@@ -158,7 +158,7 @@ export async function nextMockQuestion(req: Request, res: Response, next: NextFu
             const updatedPrev = [...prev, question].slice(-10)
             sessionCache.set(sessionId, { ...record, lastMockQuestions: updatedPrev, updatedAt: new Date().toISOString() })
         } catch {
-            // Fallback lightweight generator when OpenAI not configured or errors
+            // Fallback lightweight generator when Claude not configured or errors
             const q = await generateMockInterviewerQuestion({ session: record!, lastAnswer: lastAnswer || '' })
             question = q
             sessionCache.set(sessionId, { ...record!, updatedAt: new Date().toISOString() })
@@ -218,12 +218,12 @@ export async function registerSession(req: Request, res: Response, next: NextFun
             updatedAt: new Date().toISOString(),
         }
         sessionCache.set(sid, normalized)
-        openaiService.setDefaultContext({
+        claudeService.setDefaultContext({
             resume: normalized.resume,
             jobDescription: normalized.jobDescription,
             additionalContext: normalized.additionalContext,
         })
-        console.log('registerSession', { sessionId: sid, len: { resume: resume.length, jobDescription: jobDescription.length, context: additionalContext                    .length } })
+        console.log('registerSession', { sessionId: sid, len: { resume: resume.length, jobDescription: jobDescription.length, context: additionalContext.length } })
         res.json({ ok: true, data: normalized })
     } catch (err) {
         next(err)

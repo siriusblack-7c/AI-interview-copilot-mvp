@@ -1,4 +1,5 @@
 import type { Server, Socket } from 'socket.io'
+// Deprecated: OpenAI socket. Kept for backward compatibility if needed.
 import { openaiService, type ChatContext } from '../services/openai.service'
 import { randomUUID } from 'node:crypto'
 import { chatMemory } from './chatMemory'
