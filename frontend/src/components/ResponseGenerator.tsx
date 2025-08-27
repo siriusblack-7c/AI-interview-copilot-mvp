@@ -33,10 +33,11 @@ export default function ResponseGenerator({
     liveSegments,
     onProvideControls,
 }: ResponseGeneratorProps) {
-    const { isListening, stopListening, startListening, setSystemListening, setGenerating, isSharing, settings } = useInterviewState();
+    const { isListening, stopListening, startListening, setSystemListening, setGenerating, isSharing, settings, isGenerating } = useInterviewState();
     // const [currentResponse, setCurrentResponse] = useState('');
     const [typedQuestion, setTypedQuestion] = useState('');
     const liveBufferRef = useRef('');
+    const justClearedAtRef = useRef<number>(0);
     const pausedByTypingRef = useRef(false);
     const [suggestions, setSuggestions] = useState<string[]>([]);
     const detectedInputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -135,13 +136,12 @@ export default function ResponseGenerator({
     };
 
     useEffect(() => {
-        console.log('🧠 ResponseGenerator received question:', question);
-        if (question) {
-            // Populate textarea for visibility but do not focus; auto-generate immediately
-            setTypedQuestion(question);
-            autoResizeDetectedInput();
-            generateResponse(question);
-        }
+        if (!question) return;
+        // Clear input immediately and stream response
+        setTypedQuestion('');
+        liveBufferRef.current = '';
+        justClearedAtRef.current = Date.now();
+        generateResponse(question);
     }, [question]);
 
     useEffect(() => {
@@ -168,12 +168,12 @@ export default function ResponseGenerator({
         const merged = `${liveBufferRef.current} ${typedQuestion}`.replace(/\s+/g, ' ').trim();
         const trimmed = merged;
         if (!trimmed) return;
-        // Optionally notify parent; generation is handled locally
-        if (onManualQuestionSubmit) {
-            onManualQuestionSubmit(trimmed);
-        }
+        // Clear immediately for user feedback
         setTypedQuestion('');
         liveBufferRef.current = '';
+        justClearedAtRef.current = Date.now();
+        // Notify parent (which sets question upstream)
+        try { onManualQuestionSubmit?.(trimmed) } catch { }
     };
 
     // keep for API parity; not used in this variant
@@ -183,19 +183,27 @@ export default function ResponseGenerator({
     useEffect(() => {
         if (!liveSegments || liveSegments.length === 0) return;
         const latest = liveSegments[liveSegments.length - 1];
-        // Only accumulate 'them' (interviewer) finals into prompt buffer as the user's next question signal
+        // Only accumulate 'them' finals
         if (latest && latest.isFinal && latest.speaker === 'them') {
             const next = `${liveBufferRef.current} ${latest.text}`.replace(/\s+/g, ' ').trim();
             liveBufferRef.current = next;
-            // Always reflect into textarea so user can see continuous transcript capture
-            setTypedQuestion(next);
-            autoResizeDetectedInput();
+            // Avoid repopulating textarea immediately after a submit or while generating
+            const sinceClear = Date.now() - (justClearedAtRef.current || 0);
+            if (!isGenerating && sinceClear > 120) {
+                setTypedQuestion(next);
+                autoResizeDetectedInput();
+            }
         }
-    }, [liveSegments]);
+    }, [liveSegments, isGenerating]);
 
     // Expose controls to parent if needed
     useEffect(() => {
-        try { onProvideControls?.({ getBuffer: () => liveBufferRef.current, clear: () => { liveBufferRef.current = ''; setTypedQuestion(''); } }) } catch { }
+        try {
+            onProvideControls?.({
+                getBuffer: () => liveBufferRef.current,
+                clear: () => { liveBufferRef.current = ''; setTypedQuestion(''); justClearedAtRef.current = Date.now(); },
+            })
+        } catch { }
     }, [onProvideControls]);
 
     return (
