@@ -4,6 +4,7 @@ import { Mic, MicOff } from 'lucide-react'
 import { useInterviewState } from '../context/InterviewStateContext'
 import ResponseGenerator from './ResponseGenerator'
 import type { ConversationItem } from '../hooks/useConversation'
+import type { TranscriptSegment } from './LiveTranscript'
 
 interface PanelProps {
     conversations: ConversationItem[]
@@ -20,6 +21,9 @@ interface PanelProps {
     onManualQuestionSubmit?: (q: string) => void
     sessionType: 'live' | 'mock'
     setSessionType: (type: 'live' | 'mock') => void
+    // New: live transcript integration and buffer controls from ResponseGenerator
+    liveSegments?: TranscriptSegment[]
+    onProvideControls?: (controls: { getBuffer: () => string; clear: () => void }) => void
 }
 
 export default function InterviewCopilotPanel({
@@ -36,26 +40,44 @@ export default function InterviewCopilotPanel({
     onManualQuestionSubmit,
     sessionType,
     setSessionType,
+    liveSegments,
+    onProvideControls,
 }: PanelProps) {
     const { isGenerating } = useInterviewState()
     const [autoScroll, setAutoScroll] = useState(true)
-    const items = useMemo(() => conversations.slice(-1000).reverse(), [conversations])
-    const firstItemId = items.length ? items[0]?.id : undefined
+    // Build Q/A pairs with most recent first
+    const pairs = useMemo(() => {
+        const out: { id: string; question: string; response: string }[] = []
+        let pendingResp: { id: string; content: string } | null = null
+        for (let i = conversations.length - 1; i >= 0; i--) {
+            const item = conversations[i]
+            if (item.type === 'response' && !pendingResp) {
+                pendingResp = { id: item.id, content: item.content }
+                continue
+            }
+            if (item.type === 'question') {
+                out.push({ id: `pair-${item.id}-${pendingResp?.id ?? 'none'}`, question: item.content, response: pendingResp?.content || '' })
+                pendingResp = null
+            }
+        }
+        return out
+    }, [conversations])
+    const firstPairId = pairs.length ? pairs[0]?.id : undefined
 
     // Virtualizer for O(visible) rendering with dynamic row measurement
     const parentRef = useRef<HTMLDivElement>(null)
     const rowVirtualizer = useVirtualizer({
-        count: items.length,
+        count: pairs.length,
         getScrollElement: () => parentRef.current,
         estimateSize: () => 56,
         overscan: 12,
-        getItemKey: (index) => items[index]?.id ?? String(index),
+        getItemKey: (index) => pairs[index]?.id ?? String(index),
         measureElement: (el) => (el ? (el as HTMLElement).getBoundingClientRect().height : 0),
     })
 
     const scrollToTop = useCallback(() => {
         if (!autoScroll) return
-        if (items.length === 0) return
+        if (pairs.length === 0) return
         try {
             rowVirtualizer.scrollToIndex(0, { align: 'start' as const })
         } catch { }
@@ -64,7 +86,7 @@ export default function InterviewCopilotPanel({
             const el = parentRef.current
             if (el) el.scrollTop = 0
         } catch { }
-    }, [autoScroll, items.length, rowVirtualizer])
+    }, [autoScroll, pairs.length, rowVirtualizer])
 
     // Auto-scroll when the last item changes (ensures it runs after the question/response is added)
     useEffect(() => {
@@ -76,7 +98,7 @@ export default function InterviewCopilotPanel({
             return () => window.cancelAnimationFrame(raf2)
         })
         return () => window.cancelAnimationFrame(raf1)
-    }, [firstItemId, scrollToTop, autoScroll])
+    }, [firstPairId, scrollToTop, autoScroll])
 
     // Auto-scroll immediately when toggling autoScroll on
     useEffect(() => {
@@ -151,46 +173,52 @@ export default function InterviewCopilotPanel({
                         ref={parentRef}
                         className="flex-1 h-[42vh] sm:h-[48vh] md:h-[52vh] lg:h-[calc(100vh-150px)] max-h-full bg-[#303030] border border-gray-700 rounded-md p-4 sm:p-6 overflow-y-auto mb-2"
                     >
-                        {items.length === 0 ? (
+                        {pairs.length === 0 ? (
                             <div className="h-full w-full flex items-center justify-center text-sm text-gray-300 text-center">
                                 The Interview Copilot is ready and waiting for interviewer's question
                             </div>
                         ) : (
                             <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative' }}>
                                 {rowVirtualizer.getVirtualItems().map((vi) => {
-                                    const item = items[vi.index]
+                                    const pair = pairs[vi.index]
                                     return (
                                         <div
-                                            key={item.id}
+                                            key={pair.id}
                                             ref={rowVirtualizer.measureElement}
                                             data-index={vi.index}
                                             style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${vi.start}px)` }}
-                                            className="text-sm text-gray-200 py-1"
+                                            className="text-sm text-gray-200 py-2"
                                         >
-                                            <span className={`px-2 py-0.5 rounded-full text-xs mr-2 text-white`}
-                                                style={{ backgroundColor: item.type === 'question' ? '#2563eb' : item.type === 'response' ? '#9333ea' : '#ca8a04' }}>
-                                                {item.type === 'question' ? 'Q' : item.type === 'response' ? 'AI' : 'Live'}
-                                            </span>
-                                            <span className="align-middle whitespace-pre-wrap break-words">{item.content}</span>
+                                            <div className="mb-1">
+                                                <span className={`px-2 py-0.5 rounded-full text-xs mr-2 text-white`} style={{ backgroundColor: '#2563eb' }}>Q</span>
+                                                <span className="align-middle whitespace-pre-wrap break-words">{pair.question}</span>
+                                            </div>
+                                            {isGenerating && vi.index === 0 && !pair.response ? (
+                                                <div className="flex items-center gap-3 p-2">
+                                                    <div className="flex space-x-1">
+                                                        <div className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: '#9333ea', animationDelay: '0ms' }}></div>
+                                                        <div className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: '#9333ea', animationDelay: '150ms' }}></div>
+                                                        <div className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: '#9333ea', animationDelay: '300ms' }}></div>
+                                                    </div>
+                                                </div>
+                                            ) : null}
+                                            {pair.response ? (
+                                                <div>
+                                                    <span className={`px-2 py-0.5 rounded-full text-xs mr-2 text-white`} style={{ backgroundColor: '#9333ea' }}>AI</span>
+                                                    <span className="align-middle whitespace-pre-wrap break-words">{pair.response}</span>
+                                                </div>
+                                            ) : null}
                                         </div>
                                     )
                                 })}
                             </div>
                         )}
-                        {isGenerating && (
-                            <div className="flex items-center gap-3 p-4">
-                                <div className="flex space-x-1">
-                                    <div className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: '#9333ea', animationDelay: '0ms' }}></div>
-                                    <div className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: '#9333ea', animationDelay: '150ms' }}></div>
-                                    <div className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: '#9333ea', animationDelay: '300ms' }}></div>
-                                </div>
-                            </div>
-                        )}
+
 
                     </div>
                 </div>
                 <div className="w-full lg:max-w-[280px] lg:min-w-[260px] h-auto lg:h-full flex flex-col justify-between order-2 lg:order-2">
-                    {items.length > 0 && (
+                    {pairs.length > 0 && (
                         <div className="mt-4 flex justify-end">
                             <button onClick={onClearHistory} className="text-xs text-red-500 hover:text-red-400">Clear history</button>
                         </div>
@@ -206,6 +234,8 @@ export default function InterviewCopilotPanel({
                         onMuteToggle={onMuteToggle}
                         isMuted={isMuted}
                         onManualQuestionSubmit={onManualQuestionSubmit}
+                        liveSegments={liveSegments}
+                        onProvideControls={onProvideControls}
                     />
 
                 </div>

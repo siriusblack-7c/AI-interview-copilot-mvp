@@ -13,6 +13,9 @@ interface ResponseGeneratorProps {
     isMuted?: boolean;
     // New props for manual typing + mic control
     onManualQuestionSubmit?: (question: string) => void;
+    // New: live transcript feed and buffer accessor
+    liveSegments?: { id: string; speaker: 'me' | 'them'; text: string; isFinal: boolean }[];
+    onProvideControls?: (controls: { getBuffer: () => string; clear: () => void }) => void;
 }
 
 export default function ResponseGenerator({
@@ -27,10 +30,13 @@ export default function ResponseGenerator({
     resumeText,
     jobDescription,
     additionalContext,
+    liveSegments,
+    onProvideControls,
 }: ResponseGeneratorProps) {
     const { isListening, stopListening, startListening, setSystemListening, setGenerating, isSharing, settings } = useInterviewState();
     // const [currentResponse, setCurrentResponse] = useState('');
     const [typedQuestion, setTypedQuestion] = useState('');
+    const liveBufferRef = useRef('');
     const pausedByTypingRef = useRef(false);
     const [suggestions, setSuggestions] = useState<string[]>([]);
     const detectedInputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -114,6 +120,9 @@ export default function ResponseGenerator({
             });
 
             const finalText = await donePromise;
+            // Ensure input is cleared after a successful generation cycle
+            setTypedQuestion('');
+            liveBufferRef.current = '';
             onResponseGenerated(finalText);
             return finalText;
         } catch (error: any) {
@@ -156,17 +165,38 @@ export default function ResponseGenerator({
     };
 
     const submitTypedQuestion = async () => {
-        const trimmed = typedQuestion.trim();
+        const merged = `${liveBufferRef.current} ${typedQuestion}`.replace(/\s+/g, ' ').trim();
+        const trimmed = merged;
         if (!trimmed) return;
         // Optionally notify parent; generation is handled locally
         if (onManualQuestionSubmit) {
             onManualQuestionSubmit(trimmed);
         }
         setTypedQuestion('');
+        liveBufferRef.current = '';
     };
 
     // keep for API parity; not used in this variant
     // NOTE: Clear action is not exposed in this minimal UI
+
+    // Build live transcript buffer from incoming segments
+    useEffect(() => {
+        if (!liveSegments || liveSegments.length === 0) return;
+        const latest = liveSegments[liveSegments.length - 1];
+        // Only accumulate 'them' (interviewer) finals into prompt buffer as the user's next question signal
+        if (latest && latest.isFinal && latest.speaker === 'them') {
+            const next = `${liveBufferRef.current} ${latest.text}`.replace(/\s+/g, ' ').trim();
+            liveBufferRef.current = next;
+            // Always reflect into textarea so user can see continuous transcript capture
+            setTypedQuestion(next);
+            autoResizeDetectedInput();
+        }
+    }, [liveSegments]);
+
+    // Expose controls to parent if needed
+    useEffect(() => {
+        try { onProvideControls?.({ getBuffer: () => liveBufferRef.current, clear: () => { liveBufferRef.current = ''; setTypedQuestion(''); } }) } catch { }
+    }, [onProvideControls]);
 
     return (
         <div className="bg-[#2c2c2c] rounded-md flex flex-col justify-between h-full">

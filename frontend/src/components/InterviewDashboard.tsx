@@ -33,6 +33,7 @@ function InterviewDashboard({ sessionId }: { sessionId: string }) {
     const [sessionType, setSessionType] = useState<'live' | 'mock'>('live');
 
     const textToSpeechRef = useRef<TextToSpeechRef>(null);
+    const responseControlsRef = useRef<{ getBuffer: () => string; clear: () => void } | null>(null);
 
     // Custom hooks
     const { addQuestion, addResponse, conversations, clearHistory } = useConversation();
@@ -160,8 +161,12 @@ function InterviewDashboard({ sessionId }: { sessionId: string }) {
                 const seen = seenDetectIdsRef.current;
                 if (seen.has(id)) return;
                 seen.add(id);
-                setCurrentQuestion(q);
-                addQuestion(q);
+                // Merge textarea/live buffer into detected question and clear buffer
+                const extra = (() => { try { return responseControlsRef.current?.getBuffer?.() || '' } catch { return '' } })();
+                const merged = `${q} ${extra}`.replace(/\s+/g, ' ').trim();
+                try { responseControlsRef.current?.clear?.() } catch { }
+                setCurrentQuestion(merged);
+                addQuestion(merged);
             } catch { }
         };
         socket.on('detect:question', onDetected);
@@ -430,6 +435,8 @@ function InterviewDashboard({ sessionId }: { sessionId: string }) {
                                 }}
                                 sessionType={sessionType}
                                 setSessionType={setSessionType}
+                                liveSegments={segments}
+                                onProvideControls={(controls) => { responseControlsRef.current = controls; }}
                             />
                         </Suspense>
                         {sessionType === 'mock' && (
