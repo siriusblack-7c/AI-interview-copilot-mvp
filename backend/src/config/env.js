@@ -1,43 +1,51 @@
-const { z } = require('zod')
+// Environment variable validation without Zod
+function parseEnv() {
+    const env = {}
 
-const EnvSchema = z.object({
-    NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-    PORT: z
-        .string()
-        .default(process.env.PORT ?? '3000')
-        .transform((v) => Number(v))
-        .pipe(z.number().int().positive()),
-    ALLOWED_ORIGINS: z
-        .string()
-        .default('*') // Allow all origins by default
-        .transform((v) => v.split(',').map((o) => o.trim()).filter(Boolean)),
-    // Placeholders for later secrets (not required yet)
-    ANTHROPIC_API_KEY: z.string().optional(),
-    ANTHROPIC_MODEL: z.string().default('claude-3-haiku-20240307'),
-    DEEPGRAM_API_KEY: z.string().optional(),
-    DEEPGRAM_MODEL: z.string().default('nova-3'),
-    DEEPGRAM_INTERIM_RESULTS: z.boolean().default(true),
-    DEEPGRAM_SMART_FORMAT: z.boolean().default(true),
-    DEEPGRAM_PUNCTUATE: z.boolean().default(true),
-    DEEPGRAM_LANGUAGE: z.string().default('en-US'),
-    DEEPGRAM_LANGUAGES: z.string().optional(),
-    DEEPGRAM_ENDPOINTING: z.number().default(500),
-})
+    // NODE_ENV validation
+    const validEnvs = ['development', 'test', 'production']
+    env.NODE_ENV = validEnvs.includes(process.env.NODE_ENV) ? process.env.NODE_ENV : 'development'
 
-const env = EnvSchema.parse({
-    NODE_ENV: process.env.NODE_ENV,
-    PORT: process.env.PORT,
-    ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS,
-    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
-    ANTHROPIC_MODEL: process.env.ANTHROPIC_MODEL,
-    DEEPGRAM_API_KEY: process.env.DEEPGRAM_API_KEY,
-    DEEPGRAM_MODEL: process.env.DEEPGRAM_MODEL,
-    DEEPGRAM_INTERIM_RESULTS: process.env.DEEPGRAM_INTERIM_RESULTS,
-    DEEPGRAM_SMART_FORMAT: process.env.DEEPGRAM_SMART_FORMAT,
-    DEEPGRAM_PUNCTUATE: process.env.DEEPGRAM_PUNCTUATE,
-    DEEPGRAM_LANGUAGE: process.env.DEEPGRAM_LANGUAGE,
-    DEEPGRAM_LANGUAGES: process.env.DEEPGRAM_LANGUAGES,
-    DEEPGRAM_ENDPOINTING: process.env.DEEPGRAM_ENDPOINTING,
-})
+    // PORT validation
+    const portStr = process.env.PORT ?? '3000'
+    const portNum = parseInt(portStr, 10)
+    if (isNaN(portNum) || portNum <= 0) {
+        throw new Error(`Invalid PORT: ${portStr}. Must be a positive integer.`)
+    }
+    env.PORT = portNum
+
+    // ALLOWED_ORIGINS validation
+    const originsStr = process.env.ALLOWED_ORIGINS ?? '*'
+    env.ALLOWED_ORIGINS = originsStr === '*' ? ['*'] : originsStr.split(',').map(o => o.trim()).filter(Boolean)
+
+    // Optional API keys
+    env.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY
+    env.DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY
+
+    // Model configurations with defaults
+    env.ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || 'claude-3-haiku-20240307'
+    env.DEEPGRAM_MODEL = process.env.DEEPGRAM_MODEL || 'nova-3'
+
+    // Boolean configurations with defaults
+    env.DEEPGRAM_INTERIM_RESULTS = process.env.DEEPGRAM_INTERIM_RESULTS === 'false' ? false : true
+    env.DEEPGRAM_SMART_FORMAT = process.env.DEEPGRAM_SMART_FORMAT === 'false' ? false : true
+    env.DEEPGRAM_PUNCTUATE = process.env.DEEPGRAM_PUNCTUATE === 'false' ? false : true
+
+    // String configurations with defaults
+    env.DEEPGRAM_LANGUAGE = process.env.DEEPGRAM_LANGUAGE || 'en-US'
+    env.DEEPGRAM_LANGUAGES = process.env.DEEPGRAM_LANGUAGES
+
+    // Number configuration with default
+    const endpointingStr = process.env.DEEPGRAM_ENDPOINTING
+    const endpointingNum = endpointingStr ? parseInt(endpointingStr, 10) : 500
+    if (isNaN(endpointingNum)) {
+        throw new Error(`Invalid DEEPGRAM_ENDPOINTING: ${endpointingStr}. Must be a number.`)
+    }
+    env.DEEPGRAM_ENDPOINTING = endpointingNum
+
+    return env
+}
+
+const env = parseEnv()
 
 module.exports = { env }

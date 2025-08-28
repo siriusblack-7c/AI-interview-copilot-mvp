@@ -1,26 +1,57 @@
-const { z } = require('zod')
 const { claudeService } = require('../services/claude.service.js')
 const { sessionCache } = require('../services/sessionCache.js')
 
-const generateSchema = z.object({
-    question: z.string().min(1),
-    context: z
-        .object({
-            resume: z.string().optional(),
-            jobDescription: z.string().optional(),
-            additionalContext: z.string().optional(),
-            verbosity: z.enum(['concise', 'default', 'lengthy']).optional(),
-            language: z.string().optional(),
-            temperature: z.enum(['low', 'default', 'high']).optional(),
-            performance: z.enum(['speed', 'quality']).optional(),
-        })
-        .optional(),
-    sessionId: z.string().optional(),
-})
+// Validation helper functions
+function validateGenerateInput(body) {
+    if (!body || typeof body !== 'object') {
+        throw new Error('Request body must be an object')
+    }
+
+    const { question, context, sessionId } = body
+
+    if (!question || typeof question !== 'string' || question.trim().length === 0) {
+        throw new Error('question is required and must be a non-empty string')
+    }
+
+    if (context !== undefined && context !== null) {
+        if (typeof context !== 'object') {
+            throw new Error('context must be an object')
+        }
+
+        // Validate context properties
+        if (context.resume !== undefined && typeof context.resume !== 'string') {
+            throw new Error('context.resume must be a string')
+        }
+        if (context.jobDescription !== undefined && typeof context.jobDescription !== 'string') {
+            throw new Error('context.jobDescription must be a string')
+        }
+        if (context.additionalContext !== undefined && typeof context.additionalContext !== 'string') {
+            throw new Error('context.additionalContext must be a string')
+        }
+        if (context.verbosity !== undefined && !['concise', 'default', 'lengthy'].includes(context.verbosity)) {
+            throw new Error('context.verbosity must be one of: concise, default, lengthy')
+        }
+        if (context.language !== undefined && typeof context.language !== 'string') {
+            throw new Error('context.language must be a string')
+        }
+        if (context.temperature !== undefined && !['low', 'default', 'high'].includes(context.temperature)) {
+            throw new Error('context.temperature must be one of: low, default, high')
+        }
+        if (context.performance !== undefined && !['speed', 'quality'].includes(context.performance)) {
+            throw new Error('context.performance must be one of: speed, quality')
+        }
+    }
+
+    if (sessionId !== undefined && typeof sessionId !== 'string') {
+        throw new Error('sessionId must be a string')
+    }
+
+    return { question, context, sessionId }
+}
 
 async function generate(req, res, next) {
     try {
-        const { question, context, sessionId } = generateSchema.parse(req.body)
+        const { question, context, sessionId } = validateGenerateInput(req.body)
         const ctx = (() => {
             if (!context) return undefined
             const out = {}
@@ -50,25 +81,56 @@ async function generate(req, res, next) {
     }
 }
 
-const detectSchema = z.object({
-    utterance: z.string().min(1),
-    context: z
-        .object({
-            resume: z.string().optional(),
-            jobDescription: z.string().optional(),
-            additionalContext: z.string().optional(),
-            verbosity: z.enum(['concise', 'default', 'lengthy']).optional(),
-            language: z.string().optional(),
-            temperature: z.enum(['low', 'default', 'high']).optional(),
-            performance: z.enum(['speed', 'quality']).optional(),
-        })
-        .optional(),
-    sessionId: z.string().optional(),
-})
+function validateDetectInput(body) {
+    if (!body || typeof body !== 'object') {
+        throw new Error('Request body must be an object')
+    }
+
+    const { utterance, context, sessionId } = body
+
+    if (!utterance || typeof utterance !== 'string' || utterance.trim().length === 0) {
+        throw new Error('utterance is required and must be a non-empty string')
+    }
+
+    if (context !== undefined && context !== null) {
+        if (typeof context !== 'object') {
+            throw new Error('context must be an object')
+        }
+
+        // Validate context properties
+        if (context.resume !== undefined && typeof context.resume !== 'string') {
+            throw new Error('context.resume must be a string')
+        }
+        if (context.jobDescription !== undefined && typeof context.jobDescription !== 'string') {
+            throw new Error('context.jobDescription must be a string')
+        }
+        if (context.additionalContext !== undefined && typeof context.additionalContext !== 'string') {
+            throw new Error('context.additionalContext must be a string')
+        }
+        if (context.verbosity !== undefined && !['concise', 'default', 'lengthy'].includes(context.verbosity)) {
+            throw new Error('context.verbosity must be one of: concise, default, lengthy')
+        }
+        if (context.language !== undefined && typeof context.language !== 'string') {
+            throw new Error('context.language must be a string')
+        }
+        if (context.temperature !== undefined && !['low', 'default', 'high'].includes(context.temperature)) {
+            throw new Error('context.temperature must be one of: low, default, high')
+        }
+        if (context.performance !== undefined && !['speed', 'quality'].includes(context.performance)) {
+            throw new Error('context.performance must be one of: speed, quality')
+        }
+    }
+
+    if (sessionId !== undefined && typeof sessionId !== 'string') {
+        throw new Error('sessionId must be a string')
+    }
+
+    return { utterance, context, sessionId }
+}
 
 async function detect(req, res, next) {
     try {
-        const { utterance, context, sessionId } = detectSchema.parse(req.body)
+        const { utterance, context, sessionId } = validateDetectInput(req.body)
         const ctx = (() => {
             if (!context) return undefined
             const out = {}
@@ -98,18 +160,48 @@ async function detect(req, res, next) {
     }
 }
 
-const jobDescSchema = z.object({
-    jobTitle: z.string().min(1),
-    industry: z.string().optional(),
-    companyName: z.string().optional(),
-    companySize: z.string().optional(),
-    experienceLevel: z.string().optional(),
-    keySkills: z.array(z.string()).optional(),
-})
+function validateJobDescriptionInput(body) {
+    if (!body || typeof body !== 'object') {
+        throw new Error('Request body must be an object')
+    }
+
+    const { jobTitle, industry, companyName, companySize, experienceLevel, keySkills } = body
+
+    if (!jobTitle || typeof jobTitle !== 'string' || jobTitle.trim().length === 0) {
+        throw new Error('jobTitle is required and must be a non-empty string')
+    }
+
+    if (industry !== undefined && typeof industry !== 'string') {
+        throw new Error('industry must be a string')
+    }
+
+    if (companyName !== undefined && typeof companyName !== 'string') {
+        throw new Error('companyName must be a string')
+    }
+
+    if (companySize !== undefined && typeof companySize !== 'string') {
+        throw new Error('companySize must be a string')
+    }
+
+    if (experienceLevel !== undefined && typeof experienceLevel !== 'string') {
+        throw new Error('experienceLevel must be a string')
+    }
+
+    if (keySkills !== undefined) {
+        if (!Array.isArray(keySkills)) {
+            throw new Error('keySkills must be an array')
+        }
+        if (!keySkills.every(skill => typeof skill === 'string')) {
+            throw new Error('keySkills must be an array of strings')
+        }
+    }
+
+    return { jobTitle, industry, companyName, companySize, experienceLevel, keySkills }
+}
 
 async function jobDescription(req, res, next) {
     try {
-        const params = jobDescSchema.parse(req.body)
+        const params = validateJobDescriptionInput(req.body)
         const text = await claudeService.generateJobDescription(params)
         res.json({ ok: true, text })
     } catch (err) {

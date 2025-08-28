@@ -1,24 +1,45 @@
-const { z } = require('zod')
 const { sessionCache } = require('../services/sessionCache.js')
 const { fetchSessionFromMain, completeSessionOnMain, generateMockInterviewerQuestion } = require('../services/mainProjectApi.mock.js')
 const { claudeService } = require('../services/claude.service.js')
 const { chatMemory } = require('../sockets/chatMemory.js')
 
-const idSchema = z.object({ sessionId: z.string().min(1) })
+function validateSessionId(sessionId) {
+    if (!sessionId || typeof sessionId !== 'string' || sessionId.trim().length === 0) {
+        throw new Error('sessionId is required and must be a non-empty string')
+    }
+    return sessionId.trim()
+}
 
 function extractSessionId(req) {
-    const fromQuery = (() => { try { return idSchema.parse(req.query) } catch { return null } })()
-    if (fromQuery) return fromQuery
-    const fromBody = (() => { try { return idSchema.parse(req.body) } catch { return null } })()
-    if (fromBody) return fromBody
+    // Try to extract sessionId from query params
+    if (req.query && req.query.sessionId) {
+        try {
+            return { sessionId: validateSessionId(req.query.sessionId) }
+        } catch {
+            // Continue to next method
+        }
+    }
+
+    // Try to extract sessionId from request body
+    if (req.body && req.body.sessionId) {
+        try {
+            return { sessionId: validateSessionId(req.body.sessionId) }
+        } catch {
+            // Continue to next method
+        }
+    }
+
     // Fallback for axios.post({ params: { sessionId } })
     try {
         const possible = (req.body && req.body.params) || {}
-        const { sessionId } = idSchema.parse(possible)
-        return { sessionId }
+        if (possible.sessionId) {
+            return { sessionId: validateSessionId(possible.sessionId) }
+        }
     } catch {
-        throw new Error('sessionId is required')
+        // Continue
     }
+
+    throw new Error('sessionId is required')
 }
 
 async function getSession(req, res, next) {
@@ -51,34 +72,78 @@ async function getSession(req, res, next) {
     }
 }
 
-const completeSchema = z.object({
-    sessionId: z.string().min(1),
-    socketId: z.string().optional(),
-    history: z
-        .array(z.object({ role: z.enum(['user', 'interviewer']), content: z.string().min(1) }))
-        .default([]),
-    stats: z
-        .object({
-            totalTranscriptions: z.number().int().nonnegative().default(0),
-            totalAIResponses: z.number().int().nonnegative().default(0),
-            totalTokensUsed: z.number().int().nonnegative().default(0),
-            averageTranscriptionTime: z.number().nonnegative().default(0),
-            averageResponseTime: z.number().nonnegative().default(0),
+function validateCompleteSessionInput(body) {
+    if (!body || typeof body !== 'object') {
+        throw new Error('Request body must be an object')
+    }
+
+    const { sessionId, socketId, history, stats } = body
+
+    // Validate sessionId
+    if (!sessionId || typeof sessionId !== 'string' || sessionId.trim().length === 0) {
+        throw new Error('sessionId is required and must be a non-empty string')
+    }
+
+    // Validate socketId (optional)
+    if (socketId !== undefined && typeof socketId !== 'string') {
+        throw new Error('socketId must be a string')
+    }
+
+    // Validate history (optional array)
+    if (history !== undefined) {
+        if (!Array.isArray(history)) {
+            throw new Error('history must be an array')
+        }
+        history.forEach((item, index) => {
+            if (!item || typeof item !== 'object') {
+                throw new Error(`history[${index}] must be an object`)
+            }
+            if (!['user', 'interviewer'].includes(item.role)) {
+                throw new Error(`history[${index}].role must be 'user' or 'interviewer'`)
+            }
+            if (!item.content || typeof item.content !== 'string' || item.content.trim().length === 0) {
+                throw new Error(`history[${index}].content is required and must be a non-empty string`)
+            }
         })
-        .default({ totalTranscriptions: 0, totalAIResponses: 0, totalTokensUsed: 0, averageTranscriptionTime: 0, averageResponseTime: 0 }),
-})
+    }
+
+    // Validate stats (optional object)
+    if (stats !== undefined) {
+        if (typeof stats !== 'object') {
+            throw new Error('stats must be an object')
+        }
+
+        const statFields = ['totalTranscriptions', 'totalAIResponses', 'totalTokensUsed', 'averageTranscriptionTime', 'averageResponseTime']
+        statFields.forEach(field => {
+            if (stats[field] !== undefined) {
+                if (typeof stats[field] !== 'number' || stats[field] < 0) {
+                    throw new Error(`stats.${field} must be a non-negative number`)
+                }
+            }
+        })
+    }
+
+    return {
+        sessionId: sessionId.trim(),
+        socketId,
+        history: history || [],
+        stats: stats || { totalTranscriptions: 0, totalAIResponses: 0, totalTokensUsed: 0, averageTranscriptionTime: 0, averageResponseTime: 0 }
+    }
+}
 
 async function completeSession(req, res, next) {
     try {
         // Accept body or nested body.params
-        const payload = (() => {
-            try { return completeSchema.parse(req.body) } catch { }
-            try { return completeSchema.parse((req.body?.params || {})) } catch { }
-            return null
-        })()
-        if (!payload) {
-            res.status(400).json({ ok: false, error: 'invalid payload' })
-            return
+        let payload = null
+        try {
+            payload = validateCompleteSessionInput(req.body)
+        } catch {
+            try {
+                payload = validateCompleteSessionInput(req.body?.params || {})
+            } catch {
+                res.status(400).json({ ok: false, error: 'invalid payload' })
+                return
+            }
         }
         const { sessionId, socketId, history, stats } = payload
         let finalHistory = history
@@ -118,14 +183,40 @@ async function completeSession(req, res, next) {
     }
 }
 
-const askMockSchema = z.object({
-    sessionId: z.string().min(1),
-    lastAnswer: z.string().optional(),
-})
+function validateNextMockQuestionInput(body) {
+    if (!body || typeof body !== 'object') {
+        throw new Error('Request body must be an object')
+    }
+
+    const { sessionId, lastAnswer } = body
+
+    if (!sessionId || typeof sessionId !== 'string' || sessionId.trim().length === 0) {
+        throw new Error('sessionId is required and must be a non-empty string')
+    }
+
+    if (lastAnswer !== undefined && typeof lastAnswer !== 'string') {
+        throw new Error('lastAnswer must be a string')
+    }
+
+    return {
+        sessionId: sessionId.trim(),
+        lastAnswer: lastAnswer || undefined
+    }
+}
 
 async function nextMockQuestion(req, res, next) {
     try {
-        const parsed = (() => { try { return askMockSchema.parse(req.body) } catch { return askMockSchema.parse((req.body?.params || {})) } })()
+        let parsed = null
+        try {
+            parsed = validateNextMockQuestionInput(req.body)
+        } catch {
+            try {
+                parsed = validateNextMockQuestionInput(req.body?.params || {})
+            } catch {
+                res.status(400).json({ ok: false, error: 'invalid payload' })
+                return
+            }
+        }
         const { sessionId, lastAnswer } = parsed
         let record = sessionCache.get(sessionId)
         if (!record) record = await fetchSessionFromMain(sessionId)
@@ -169,60 +260,72 @@ async function nextMockQuestion(req, res, next) {
     }
 }
 
-const registerSchema = z.object({
-    sessionId: z.string().min(1),
-    resume: z.string().optional(),
-    jobDescription: z.string().optional(),
-    context: z.string().optional(),
-    type: z.enum(['live', 'mock', 'coding']).optional(),
-})
+function validateRegisterSessionInput(body) {
+    if (!body || typeof body !== 'object') {
+        throw new Error('Request body must be an object')
+    }
+
+    const raw = body
+    const params = (raw && raw.params) || {}
+
+    const sessionId = String(
+        raw.sessionId ?? raw.sessionID ?? params.sessionId ?? params.sessionID ?? ''
+    ).trim()
+
+    if (!sessionId) {
+        throw new Error('sessionId is required')
+    }
+
+    const resume = (() => {
+        const r = raw.resume ?? raw.resume_textcontent ?? params.resume ?? ''
+        return typeof r === 'string' ? r : ''
+    })()
+
+    const jobDescription = (() => {
+        const jd = raw.jobDescription ?? raw.role ?? params.jobDescription ?? ''
+        return typeof jd === 'string' ? jd : ''
+    })()
+
+    const additionalContext = (() => {
+        const c = raw.additionalContext ?? params.additionalContext ?? ''
+        return typeof c === 'string' ? c : ''
+    })()
+
+    const type = (() => {
+        const t = raw.type ?? params.type
+        return t === 'mock' || t === 'coding' || t === 'live' ? t : undefined
+    })()
+
+    return {
+        sessionId,
+        resume,
+        jobDescription,
+        additionalContext,
+        type
+    }
+}
 
 async function registerSession(req, res, next) {
     try {
-        // Accept multiple shapes from FE/main backend
-        const raw = req.body || {}
-        const params = (raw && raw.params) || {}
-        const sid = String(
-            raw.sessionId ?? raw.sessionID ?? params.sessionId ?? params.sessionID ?? ''
-        ).trim()
-        if (!sid) {
-            res.status(400).json({ ok: false, error: 'sessionId is required' })
-            return
-        }
-        const resume = (() => {
-            const r = raw.resume ?? raw.resume_textcontent ?? params.resume ?? ''
-            return typeof r === 'string' ? r : ''
-        })()
-        const jobDescription = (() => {
-            const jd = raw.jobDescription ?? raw.role ?? params.jobDescription ?? ''
-            return typeof jd === 'string' ? jd : ''
-        })()
-        const additionalContext = (() => {
-            const c = raw.additionalContext ?? params.additionalContext ?? ''
-            return typeof c === 'string' ? c : ''
-        })()
-        const type = (() => {
-            const t = raw.type ?? params.type
-            return t === 'mock' || t === 'coding' || t === 'live' ? t : undefined
-        })()
+        const { sessionId, resume, jobDescription, additionalContext, type } = validateRegisterSessionInput(req.body)
 
-        const prev = sessionCache.get(sid)
+        const prev = sessionCache.get(sessionId)
         const normalized = {
-            ...(prev || { sessionId: sid, status: 'active' }),
-            sessionId: sid,
+            ...(prev || { sessionId, status: 'active' }),
+            sessionId,
             resume,
             jobDescription,
             additionalContext,
             type: type || prev?.type || 'live',
             updatedAt: new Date().toISOString(),
         }
-        sessionCache.set(sid, normalized)
+        sessionCache.set(sessionId, normalized)
         claudeService.setDefaultContext({
             resume: normalized.resume,
             jobDescription: normalized.jobDescription,
             additionalContext: normalized.additionalContext,
         })
-        console.log('registerSession', { sessionId: sid, len: { resume: resume.length, jobDescription: jobDescription.length, context: additionalContext.length } })
+        console.log('registerSession', { sessionId, len: { resume: resume.length, jobDescription: jobDescription.length, context: additionalContext.length } })
         res.json({ ok: true, data: normalized })
     } catch (err) {
         next(err)
