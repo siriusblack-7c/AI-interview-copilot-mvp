@@ -1,7 +1,5 @@
-import type { SessionData } from './sessionCache'
-
 // Replace with real API later. For now, fabricate predictable data.
-export async function fetchSessionFromMain(sessionId: string): Promise<SessionData> {
+async function fetchSessionFromMain(sessionId) {
     // Simulate network delay
     await new Promise((r) => setTimeout(r, 50))
     // Mocked payload. Upstream will supply these fields; keep empty strings when not provided.
@@ -19,20 +17,17 @@ export async function fetchSessionFromMain(sessionId: string): Promise<SessionDa
     }
 }
 
-export async function completeSessionOnMain(sessionId: string, data: SessionData & { history?: { role: 'user' | 'interviewer'; content: string }[] }): Promise<void> {
+async function completeSessionOnMain(sessionId, data) {
     // Mock: pretend to send to main backend and succeed
     await new Promise((r) => setTimeout(r, 50))
 }
 
-export async function generateMockInterviewerQuestion(params: {
-    session: SessionData
-    lastAnswer: string
-}): Promise<string> {
+async function generateMockInterviewerQuestion(params) {
     // Very simple mock logic: tailor based on jobDescription or resume keywords
     const jd = (params.session.jobDescription || '').toLowerCase()
     const ctx = (params.session.context || '').toLowerCase()
     const resume = (params.session.resume || '').toLowerCase()
-    const pool: string[] = []
+    const pool = []
     if (/react|frontend|typescript/.test(jd + resume + ctx)) {
         pool.push(
             'Can you explain how you manage state in large React applications?',
@@ -54,7 +49,7 @@ export async function generateMockInterviewerQuestion(params: {
             'How do you prioritize tasks when deadlines are tight?'
         )
     }
-    return pool[Math.floor(Math.random() * pool.length)]!
+    return pool[Math.floor(Math.random() * pool.length)]
 }
 
-
+module.exports = { fetchSessionFromMain, completeSessionOnMain, generateMockInterviewerQuestion }

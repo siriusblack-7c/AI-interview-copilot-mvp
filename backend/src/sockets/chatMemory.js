@@ -1,14 +1,6 @@
-export type ChatRole = 'user' | 'interviewer'
-export interface ChatMessage { role: ChatRole; content: string }
+const store = new Map()
 
-type MemoryRecord = {
-    history: ChatMessage[]
-    summary: string
-}
-
-const store: Map<string, MemoryRecord> = new Map()
-
-const ensure = (socketId: string): MemoryRecord => {
+const ensure = (socketId) => {
     let rec = store.get(socketId)
     if (!rec) {
         rec = { history: [], summary: '' }
@@ -17,8 +9,8 @@ const ensure = (socketId: string): MemoryRecord => {
     return rec
 }
 
-export const chatMemory = {
-    appendUser(socketId: string, text?: string) {
+const chatMemory = {
+    appendUser(socketId, text) {
         const t = String(text || '').trim()
         if (!t) return
         const rec = ensure(socketId)
@@ -28,7 +20,7 @@ export const chatMemory = {
         // Hard cap to avoid unbounded growth; summarization will keep it useful
         if (rec.history.length > 1000) rec.history = rec.history.slice(-1000)
     },
-    appendInterviewer(socketId: string, text?: string) {
+    appendInterviewer(socketId, text) {
         const t = String(text || '').trim()
         if (!t) return
         const rec = ensure(socketId)
@@ -37,32 +29,31 @@ export const chatMemory = {
         rec.history.push({ role: 'interviewer', content: t })
         if (rec.history.length > 1000) rec.history = rec.history.slice(-1000)
     },
-    getRecent(socketId: string, n: number = 12): ChatMessage[] {
+    getRecent(socketId, n = 12) {
         const rec = ensure(socketId)
         return rec.history.slice(-n)
     },
-    getAll(socketId: string): ChatMessage[] {
+    getAll(socketId) {
         const rec = ensure(socketId)
         return rec.history.slice()
     },
-    pruneRecent(socketId: string, keep: number) {
+    pruneRecent(socketId, keep) {
         const rec = ensure(socketId)
         if (keep <= 0) { rec.history = []; return }
         if (rec.history.length > keep) rec.history = rec.history.slice(-keep)
     },
-    getSummary(socketId: string): string {
+    getSummary(socketId) {
         const rec = ensure(socketId)
         return rec.summary
     },
-    setSummary(socketId: string, s?: string) {
+    setSummary(socketId, s) {
         const rec = ensure(socketId)
         rec.summary = String(s || '').trim()
     },
-    clear(socketId: string) {
+    clear(socketId) {
         store.delete(socketId)
     },
 }
 
-export default chatMemory
-
-
+module.exports = { chatMemory }
+module.exports.default = chatMemory

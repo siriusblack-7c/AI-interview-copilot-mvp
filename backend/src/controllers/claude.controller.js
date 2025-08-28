@@ -1,8 +1,6 @@
-import { Request, Response, NextFunction } from 'express'
-import { z } from 'zod'
-import { claudeService, type ChatContext } from '../services/claude.service'
-import { sessionCache } from '../services/sessionCache'
-import type { Request as ExpressRequest } from 'express'
+const { z } = require('zod')
+const { claudeService } = require('../services/claude.service.js')
+const { sessionCache } = require('../services/sessionCache.js')
 
 const generateSchema = z.object({
     question: z.string().min(1),
@@ -20,12 +18,12 @@ const generateSchema = z.object({
     sessionId: z.string().optional(),
 })
 
-export async function generate(req: Request, res: Response, next: NextFunction) {
+async function generate(req, res, next) {
     try {
         const { question, context, sessionId } = generateSchema.parse(req.body)
-        const ctx: ChatContext | undefined = (() => {
+        const ctx = (() => {
             if (!context) return undefined
-            const out: any = {}
+            const out = {}
             if (typeof context.resume === 'string') out.resume = context.resume
             if (typeof context.jobDescription === 'string') out.jobDescription = context.jobDescription
             if (typeof context.additionalContext === 'string') out.additionalContext = context.additionalContext
@@ -68,12 +66,12 @@ const detectSchema = z.object({
     sessionId: z.string().optional(),
 })
 
-export async function detect(req: Request, res: Response, next: NextFunction) {
+async function detect(req, res, next) {
     try {
         const { utterance, context, sessionId } = detectSchema.parse(req.body)
-        const ctx: ChatContext | undefined = (() => {
+        const ctx = (() => {
             if (!context) return undefined
-            const out: any = {}
+            const out = {}
             if (typeof context.resume === 'string') out.resume = context.resume
             if (typeof context.jobDescription === 'string') out.jobDescription = context.jobDescription
             if (typeof context.additionalContext === 'string') out.additionalContext = context.additionalContext
@@ -109,22 +107,19 @@ const jobDescSchema = z.object({
     keySkills: z.array(z.string()).optional(),
 })
 
-export async function jobDescription(req: Request, res: Response, next: NextFunction) {
+async function jobDescription(req, res, next) {
     try {
         const params = jobDescSchema.parse(req.body)
-        // Reuse OpenAI implementation parity through Claude equivalent prompt
-        const text = await claudeService.generateInterviewResponse(
-            `Create a detailed job description.\n\n${JSON.stringify(params)}`,
-        )
+        const text = await claudeService.generateJobDescription(params)
         res.json({ ok: true, text })
     } catch (err) {
         next(err)
     }
 }
 
-export async function transcribe(_req: ExpressRequest, res: Response) {
+async function transcribe(_req, res) {
     // Claude does not provide transcription. Keep endpoint for API compatibility.
     res.status(501).json({ ok: false, error: 'Transcription not supported by Claude' })
 }
 
-
+module.exports = { detect, generate, jobDescription, transcribe }

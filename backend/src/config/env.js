@@ -1,21 +1,19 @@
-import { z } from 'zod'
+const { z } = require('zod')
 
 const EnvSchema = z.object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     PORT: z
         .string()
         .default(process.env.PORT ?? '3000')
-        .transform((v: string) => Number(v))
+        .transform((v) => Number(v))
         .pipe(z.number().int().positive()),
     ALLOWED_ORIGINS: z
         .string()
         .default('*') // Allow all origins by default
-        .transform((v: string) => v.split(',').map((o: string) => o.trim()).filter(Boolean)),
+        .transform((v) => v.split(',').map((o) => o.trim()).filter(Boolean)),
     // Placeholders for later secrets (not required yet)
-    OPENAI_API_KEY: z.string().optional(),
-    OPENAI_MODEL: z.string().default('gpt-4o-mini'),
     ANTHROPIC_API_KEY: z.string().optional(),
-    ANTHROPIC_MODEL: z.string().default('claude-sonnet-4-20250514'),
+    ANTHROPIC_MODEL: z.string().default('claude-3-haiku-20240307'),
     DEEPGRAM_API_KEY: z.string().optional(),
     DEEPGRAM_MODEL: z.string().default('nova-3'),
     DEEPGRAM_INTERIM_RESULTS: z.boolean().default(true),
@@ -26,12 +24,10 @@ const EnvSchema = z.object({
     DEEPGRAM_ENDPOINTING: z.number().default(500),
 })
 
-export const env = EnvSchema.parse({
+const env = EnvSchema.parse({
     NODE_ENV: process.env.NODE_ENV,
     PORT: process.env.PORT,
     ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS,
-    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
-    OPENAI_MODEL: process.env.OPENAI_MODEL,
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
     ANTHROPIC_MODEL: process.env.ANTHROPIC_MODEL,
     DEEPGRAM_API_KEY: process.env.DEEPGRAM_API_KEY,
@@ -44,4 +40,4 @@ export const env = EnvSchema.parse({
     DEEPGRAM_ENDPOINTING: process.env.DEEPGRAM_ENDPOINTING,
 })
 
-
+module.exports = { env }

@@ -88,7 +88,7 @@ export async function updateSession(params: {
 
 export async function getNextMockQuestion(sessionId: string, lastAnswer?: string): Promise<string> {
     const sid = getOrCreateSessionId(sessionId)
-    const resp = await aiCopilotApi.post(`/api/session/mock/next-question`, { sessionId: sid, lastAnswer })
+    const resp = await aiCopilotApi.post(`/api/ai-interview-copilot/session/mock/next-question`, { sessionId: sid, lastAnswer })
     return String(resp.data?.question || '')
 }
 

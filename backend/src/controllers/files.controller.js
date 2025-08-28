@@ -1,9 +1,8 @@
-import type { Request, Response, NextFunction } from 'express'
-import pdfParse from 'pdf-parse'
+const pdfParse = require('pdf-parse')
 
-export async function extractText(req: Request, res: Response, next: NextFunction) {
+async function extractText(req, res, next) {
     try {
-        const file = (req as any).file as { buffer: Buffer; mimetype?: string; originalname?: string } | undefined
+        const file = req.file
         if (!file || !file.buffer) {
             res.status(400).json({ ok: false, error: 'file is required' })
             return
@@ -13,11 +12,11 @@ export async function extractText(req: Request, res: Response, next: NextFunctio
             return
         }
         const data = await pdfParse(file.buffer)
-        const text = (data as any)?.text || ''
+        const text = data?.text || ''
         res.json({ ok: true, text })
     } catch (err) {
         next(err)
     }
 }
 
-
+module.exports = { extractText }

@@ -1,20 +1,19 @@
-import { Request, Response, NextFunction } from 'express'
-import { z } from 'zod'
-import { sessionCache, type SessionData } from '../services/sessionCache'
-import { fetchSessionFromMain, completeSessionOnMain, generateMockInterviewerQuestion } from '../services/mainProjectApi.mock'
-import { claudeService } from '../services/claude.service'
-import { chatMemory } from '../sockets/chatMemory'
+const { z } = require('zod')
+const { sessionCache } = require('../services/sessionCache.js')
+const { fetchSessionFromMain, completeSessionOnMain, generateMockInterviewerQuestion } = require('../services/mainProjectApi.mock.js')
+const { claudeService } = require('../services/claude.service.js')
+const { chatMemory } = require('../sockets/chatMemory.js')
 
 const idSchema = z.object({ sessionId: z.string().min(1) })
 
-function extractSessionId(req: Request): { sessionId: string } {
+function extractSessionId(req) {
     const fromQuery = (() => { try { return idSchema.parse(req.query) } catch { return null } })()
     if (fromQuery) return fromQuery
     const fromBody = (() => { try { return idSchema.parse(req.body) } catch { return null } })()
     if (fromBody) return fromBody
     // Fallback for axios.post({ params: { sessionId } })
     try {
-        const possible = (req.body && (req.body as any).params) || {}
+        const possible = (req.body && req.body.params) || {}
         const { sessionId } = idSchema.parse(possible)
         return { sessionId }
     } catch {
@@ -22,7 +21,7 @@ function extractSessionId(req: Request): { sessionId: string } {
     }
 }
 
-export async function getSession(req: Request, res: Response, next: NextFunction) {
+async function getSession(req, res, next) {
     try {
         const { sessionId } = extractSessionId(req)
         // 1) Check cache
@@ -69,12 +68,12 @@ const completeSchema = z.object({
         .default({ totalTranscriptions: 0, totalAIResponses: 0, totalTokensUsed: 0, averageTranscriptionTime: 0, averageResponseTime: 0 }),
 })
 
-export async function completeSession(req: Request, res: Response, next: NextFunction) {
+async function completeSession(req, res, next) {
     try {
         // Accept body or nested body.params
         const payload = (() => {
             try { return completeSchema.parse(req.body) } catch { }
-            try { return completeSchema.parse((req.body as any)?.params || {}) } catch { }
+            try { return completeSchema.parse((req.body?.params || {})) } catch { }
             return null
         })()
         if (!payload) {
@@ -88,7 +87,7 @@ export async function completeSession(req: Request, res: Response, next: NextFun
                 finalHistory = chatMemory.getAll(socketId)
             } catch { finalHistory = [] }
         }
-        let record: SessionData | undefined = sessionCache.get(sessionId)
+        let record = sessionCache.get(sessionId)
         if (!record) {
             const fetched = await fetchSessionFromMain(sessionId)
             record = {
@@ -99,7 +98,7 @@ export async function completeSession(req: Request, res: Response, next: NextFun
             }
         }
         const nowIso = new Date().toISOString()
-        const updated: SessionData = {
+        const updated = {
             ...(record || { sessionId, resume: '', jobDescription: '', context: '' }),
             status: 'completed',
             endedAt: nowIso,
@@ -124,11 +123,11 @@ const askMockSchema = z.object({
     lastAnswer: z.string().optional(),
 })
 
-export async function nextMockQuestion(req: Request, res: Response, next: NextFunction) {
+async function nextMockQuestion(req, res, next) {
     try {
-        const parsed = (() => { try { return askMockSchema.parse(req.body) } catch { return askMockSchema.parse((req.body as any)?.params || {}) } })()
+        const parsed = (() => { try { return askMockSchema.parse(req.body) } catch { return askMockSchema.parse((req.body?.params || {})) } })()
         const { sessionId, lastAnswer } = parsed
-        let record: SessionData | undefined = sessionCache.get(sessionId)
+        let record = sessionCache.get(sessionId)
         if (!record) record = await fetchSessionFromMain(sessionId)
         if ((record?.type || 'live') !== 'mock') {
             res.status(400).json({ ok: false, error: 'Session is not mock type' })
@@ -136,14 +135,14 @@ export async function nextMockQuestion(req: Request, res: Response, next: NextFu
         }
 
         // Prefer OpenAI-powered interviewer questions when configured; fallback to simple mock generator
-        let question: string | null = null
+        let question = null
         try {
             const seed = (lastAnswer && lastAnswer.trim())
                 ? `User just answered: "${lastAnswer.trim()}". Ask a relevant next interview question.`
                 : `Start a mock interview${record.jobDescription ? ' based on the job description' : ''}${record.resume ? ' and resume' : ''}. Ask a strong opening question.`
 
             // Avoid repeating recently asked mock questions by remembering them in the session cache
-            const prev: string[] = Array.isArray((record as any).lastMockQuestions) ? (record as any).lastMockQuestions : []
+            const prev = Array.isArray(record.lastMockQuestions) ? record.lastMockQuestions : []
 
             // Try to get up to three options and pick the first not in prev
             const options = await claudeService.suggestNextQuestionsFromUtterance(seed, {
@@ -159,9 +158,9 @@ export async function nextMockQuestion(req: Request, res: Response, next: NextFu
             sessionCache.set(sessionId, { ...record, lastMockQuestions: updatedPrev, updatedAt: new Date().toISOString() })
         } catch {
             // Fallback lightweight generator when Claude not configured or errors
-            const q = await generateMockInterviewerQuestion({ session: record!, lastAnswer: lastAnswer || '' })
+            const q = await generateMockInterviewerQuestion({ session: record, lastAnswer: lastAnswer || '' })
             question = q
-            sessionCache.set(sessionId, { ...record!, updatedAt: new Date().toISOString() })
+            sessionCache.set(sessionId, { ...record, updatedAt: new Date().toISOString() })
         }
 
         res.json({ ok: true, question: question || '' })
@@ -178,11 +177,11 @@ const registerSchema = z.object({
     type: z.enum(['live', 'mock', 'coding']).optional(),
 })
 
-export async function registerSession(req: Request, res: Response, next: NextFunction) {
+async function registerSession(req, res, next) {
     try {
         // Accept multiple shapes from FE/main backend
-        const raw: any = req.body || {}
-        const params: any = (raw && raw.params) || {}
+        const raw = req.body || {}
+        const params = (raw && raw.params) || {}
         const sid = String(
             raw.sessionId ?? raw.sessionID ?? params.sessionId ?? params.sessionID ?? ''
         ).trim()
@@ -208,7 +207,7 @@ export async function registerSession(req: Request, res: Response, next: NextFun
         })()
 
         const prev = sessionCache.get(sid)
-        const normalized: SessionData = {
+        const normalized = {
             ...(prev || { sessionId: sid, status: 'active' }),
             sessionId: sid,
             resume,
@@ -230,4 +229,4 @@ export async function registerSession(req: Request, res: Response, next: NextFun
     }
 }
 
-
+module.exports = { getSession, completeSession, nextMockQuestion, registerSession }

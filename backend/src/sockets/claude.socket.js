@@ -1,17 +1,16 @@
-import type { Server, Socket } from 'socket.io'
-import { claudeService, type ChatContext } from '../services/claude.service'
-import { randomUUID } from 'node:crypto'
-import { chatMemory } from './chatMemory'
-import { sessionCache } from '../services/sessionCache'
+const { claudeService } = require('../services/claude.service.js')
+const { randomUUID } = require('node:crypto')
+const { chatMemory } = require('./chatMemory.js')
+const { sessionCache } = require('../services/sessionCache.js')
 
-export function registerClaudeSocket(io: Server) {
-    io.on('connection', (socket: Socket) => {
-        let summary: string = ''
+function registerClaudeSocket(io) {
+    io.on('connection', (socket) => {
+        let summary = ''
 
         const getHistory = () => chatMemory.getRecent(socket.id, 12)
         const getAllHistory = () => chatMemory.getAll(socket.id)
 
-        const append = (entry: { ts?: number; type: 'them' | 'ai' | 'suggestions' | 'event'; text?: string; data?: any }) => {
+        const append = (entry) => {
             try {
                 if (entry.type === 'them') {
                     chatMemory.appendUser(socket.id, entry.text)
@@ -19,9 +18,9 @@ export function registerClaudeSocket(io: Server) {
             } catch { }
         }
 
-        socket.on('claude:detect:utterance', async (payload: { utterance: string; context?: ChatContext; source?: 'typed' | 'speech'; sessionId?: string }) => {
+        socket.on('claude:detect:utterance', async (payload) => {
             try {
-                const { utterance, context, source, sessionId } = payload || ({} as any)
+                const { utterance, context, source, sessionId } = payload || {}
                 if (!utterance) return
                 append({ type: 'them', text: utterance })
                 if (sessionId) {
@@ -39,14 +38,14 @@ export function registerClaudeSocket(io: Server) {
                     const detectedId = randomUUID()
                     socket.emit('detect:question', { id: detectedId, question: result.question, source: source || 'typed' })
                 }
-            } catch (err: any) {
+            } catch (err) {
                 socket.emit('detect:error', { message: err?.message || 'detect error' })
             }
         })
 
-        socket.on('claude:chat:start', async (payload: { detectedId?: string; question: string; context?: ChatContext; sessionId?: string }) => {
+        socket.on('claude:chat:start', async (payload) => {
             try {
-                const { question, context, sessionId } = payload || ({} as any)
+                const { question, context, sessionId } = payload || {}
                 chatMemory.appendUser(socket.id, question)
                 if (sessionId) {
                     const s = sessionCache.get(sessionId)
@@ -89,11 +88,69 @@ export function registerClaudeSocket(io: Server) {
                         })()
                 }
 
-                for await (const delta of claudeService.streamChat(question, context, getHistory(), summary)) {
-                    socket.emit('claude:chat:delta', delta)
+                // Add timeout protection and buffer management for streaming
+                let lastActivity = Date.now()
+                const streamTimeout = setTimeout(() => {
+                    if (!socket.disconnected) {
+                        socket.emit('claude:chat:delta', '\n\n[Response timed out - please try again]')
+                        socket.emit('claude:chat:done')
+                    }
+                }, 180000) // 3 minute timeout (increased)
+
+                // Buffer to accumulate content for potential recovery
+                let accumulatedContent = ''
+                let isStreamComplete = false
+
+                try {
+                    let hasEmitted = false
+                    for await (const delta of claudeService.streamChat(question, context, getHistory(), summary)) {
+                        lastActivity = Date.now()
+                        clearTimeout(streamTimeout)
+
+                        hasEmitted = true
+                        accumulatedContent += delta
+
+                        if (socket.disconnected) {
+                            console.log('Socket disconnected during streaming, accumulated content length:', accumulatedContent.length)
+                            break
+                        }
+
+                        socket.emit('claude:chat:delta', delta)
+
+                        // Reset activity timeout
+                        setTimeout(() => {
+                            if (!socket.disconnected && !isStreamComplete) {
+                                socket.emit('claude:chat:delta', '\n\n[Stream appears stalled - please try again]')
+                                socket.emit('claude:chat:done')
+                            }
+                        }, 45000) // 45 second activity timeout
+                    }
+
+                    clearTimeout(streamTimeout)
+                    isStreamComplete = true
+
+                    if (hasEmitted && !socket.disconnected) {
+                        socket.emit('claude:chat:done')
+                    }
+
+                    console.log('Streaming completed successfully, total length:', accumulatedContent.length)
+
+                } catch (streamErr) {
+                    clearTimeout(streamTimeout)
+                    isStreamComplete = true
+                    console.error({ err: streamErr }, 'Streaming error')
+
+                    if (!socket.disconnected) {
+                        // Try to send any accumulated content before error
+                        if (accumulatedContent) {
+                            socket.emit('claude:chat:delta', '\n\n[Stream interrupted but partial response preserved above]')
+                        } else {
+                            socket.emit('claude:chat:delta', '\n\n[Streaming error occurred]')
+                        }
+                        socket.emit('claude:chat:done')
+                    }
                 }
-                socket.emit('claude:chat:done')
-            } catch (err: any) {
+            } catch (err) {
                 socket.emit('claude:chat:error', { message: err?.message || 'stream error' })
             }
         })
@@ -104,4 +161,4 @@ export function registerClaudeSocket(io: Server) {
     })
 }
 
-
+module.exports = { registerClaudeSocket }

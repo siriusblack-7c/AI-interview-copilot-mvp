@@ -11,7 +11,7 @@ class ClaudeService {
         context?: { resume?: string; jobDescription?: string; additionalContext?: string },
         sessionId?: string,
     ): Promise<string> {
-        const resp = await aiCopilotApi.post('/api/claude/generate', { question, context, sessionId });
+        const resp = await aiCopilotApi.post('/api/ai-interview-copilot/claude/generate', { question, context, sessionId });
         const text = resp.data?.text || '';
         if (!text) throw new Error('No response generated from server');
         return text;
@@ -24,7 +24,7 @@ class ClaudeService {
         experienceLevel?: string,
         keySkills?: string[]
     ): Promise<string> {
-        const resp = await aiCopilotApi.post('/api/claude/job-description', { jobTitle, industry, companyName, experienceLevel, keySkills });
+        const resp = await aiCopilotApi.post('/api/ai-interview-copilot/claude/job-description', { jobTitle, industry, companyName, experienceLevel, keySkills });
         const text = resp.data?.text || '';
         if (!text) throw new Error('No response generated from server');
         return text;
@@ -35,7 +35,7 @@ class ClaudeService {
         context?: { resume?: string; jobDescription?: string; additionalContext?: string },
         sessionId?: string,
     ): Promise<{ isQuestion: boolean; question: string | null; answer: string | null }> {
-        const resp = await aiCopilotApi.post('/api/claude/detect', { utterance, context, sessionId });
+        const resp = await aiCopilotApi.post('/api/ai-interview-copilot/claude/detect', { utterance, context, sessionId });
         const { isQuestion, question, answer } = resp.data || {};
         return { isQuestion: !!isQuestion, question: question ?? null, answer: answer ?? null };
     }
@@ -70,6 +70,32 @@ class ClaudeService {
         socket.on('claude:chat:done', handleDone);
         socket.on('claude:chat:error', handleError);
         socket.on('claude:chat:suggestions', handleSuggestions);
+
+        // Add connection monitoring
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 3;
+
+        const handleDisconnect = () => {
+            if (reconnectAttempts < maxReconnectAttempts) {
+                reconnectAttempts++;
+                console.log(`Stream connection lost, attempting reconnect ${reconnectAttempts}/${maxReconnectAttempts}`);
+                setTimeout(() => {
+                    if (!socket.connected) {
+                        socket.connect();
+                        // Re-emit the request after reconnection
+                        setTimeout(() => {
+                            if (socket.connected) {
+                                socket.emit('claude:chat:start', { question: params.question, context: params.context, sessionId: params.sessionId });
+                            }
+                        }, 1000);
+                    }
+                }, 1000 * reconnectAttempts);
+            } else {
+                params.onError?.('Connection lost - please try again');
+            }
+        };
+
+        socket.on('disconnect', handleDisconnect);
         socket.emit('claude:chat:start', { question: params.question, context: params.context, sessionId: params.sessionId });
         return () => {
             try {
@@ -77,6 +103,7 @@ class ClaudeService {
                 socket.off('claude:chat:done', handleDone);
                 socket.off('claude:chat:error', handleError);
                 socket.off('claude:chat:suggestions', handleSuggestions);
+                socket.off('disconnect', handleDisconnect);
             } catch { }
         };
     }

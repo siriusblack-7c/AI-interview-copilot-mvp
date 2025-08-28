@@ -1,19 +1,14 @@
-import express from 'express'
-import cors from 'cors'
-import helmet from 'helmet'
-import compression from 'compression'
-import pinoHttp from 'pino-http'
-import morgan from 'morgan'
-import { rateLimiter } from './middlewares/rateLimit'
-import { errorHandler } from './middlewares/error'
-import { logger } from './utils/logger'
-import healthRouter from './routes/health.routes'
-import claudeRouter from './routes/claude.routes'
-import openaiRouter from './routes/openai.routes'
-import filesRouter from './routes/files.routes'
-import sessionRouter from './routes/session.routes'
+const express = require('express')
+const cors = require('cors')
+const helmet = require('helmet')
+const compression = require('compression')
 
-export function createApp() {
+const { rateLimiter } = require('./middlewares/rateLimit.js')
+const { errorHandler } = require('./middlewares/error.js')
+
+const routes = require('./routes/index.js')
+
+function createApp() {
     const app = express()
 
     app.disable('x-powered-by')
@@ -50,22 +45,22 @@ export function createApp() {
     app.use(express.json({ limit: '2mb' }))
     app.use(express.urlencoded({ extended: true }))
 
-    app.use(pinoHttp({ logger }))
+    // Simple request logging
+    app.use((req, res, next) => {
+        const start = Date.now()
+        res.on('finish', () => {
+            const duration = Date.now() - start
+            console.log(`${req.method} ${req.url} ${res.statusCode} - ${duration}ms`)
+        })
+        next()
+    })
 
-    // HTTP request logging with Morgan
-    app.use(morgan('combined'))
-
-    app.use('/health', healthRouter)
-    app.use('/api/claude', claudeRouter)
-    // Keep legacy OpenAI routes mounted for backward compatibility if any clients still call them
-    app.use('/api/openai', openaiRouter)
-    app.use('/api/files', filesRouter)
-    app.use('/api/session', sessionRouter)
+    app.use('/api/ai-interview-copilot', routes)
 
     app.use(rateLimiter)
 
     // 404 handler
-    app.use((req: express.Request, res: express.Response) => {
+    app.use((req, res) => {
         res.status(404).json({ ok: false, error: 'Not Found' })
     })
 
@@ -74,4 +69,4 @@ export function createApp() {
     return app
 }
 
-
+module.exports = { createApp }

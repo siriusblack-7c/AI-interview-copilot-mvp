@@ -1,12 +1,11 @@
-import 'dotenv/config'
-import http from 'http'
-import { AddressInfo } from 'net'
-import { Server as IOServer } from 'socket.io'
-import { createApp } from './app'
-import { env } from './config/env'
-import { logger } from './utils/logger'
-import { registerClaudeSocket } from './sockets/claude.socket'
-import { registerDeepgramSocket } from './sockets/deepgram.socket'
+require('dotenv/config')
+const http = require('http')
+const { Server: IOServer } = require('socket.io')
+const { createApp } = require('./app.js')
+const { env } = require('./config/env.js')
+
+const { registerClaudeSocket } = require('./sockets/claude.socket.js')
+const { registerDeepgramSocket } = require('./sockets/deepgram.socket.js')
 
 const app = createApp()
 const server = http.createServer(app)
@@ -36,12 +35,18 @@ const io = new IOServer(server, {
         },
         credentials: true
     },
+    // Improve connection stability for long-running streams
+    pingTimeout: 60000,      // 60 seconds (increased from default 5000ms)
+    pingInterval: 25000,     // 25 seconds (increased from default 25000ms)
+    connectTimeout: 20000,   // 20 seconds connection timeout
+    maxHttpBufferSize: 10e6, // 10MB max buffer for large payloads
+    transports: ['websocket', 'polling'], // Prefer websocket, fallback to polling
 })
 
-io.on('connection', (socket: any) => {
-    logger.info({ id: socket.id }, 'socket connected')
-    socket.on('disconnect', (reason: any) => {
-        logger.info({ id: socket.id, reason }, 'socket disconnected')
+io.on('connection', (socket) => {
+    console.log({ id: socket.id }, 'socket connected')
+    socket.on('disconnect', (reason) => {
+        console.log({ id: socket.id, reason }, 'socket disconnected')
     })
 })
 
@@ -49,15 +54,15 @@ registerDeepgramSocket(io)
 registerClaudeSocket(io)
 
 const listener = server.listen(env.PORT || 3000, () => {
-    const { port } = listener.address() as AddressInfo
-    logger.info({ port, env: env.NODE_ENV }, `HTTP server listening on :${port}`)
+    const { port } = listener.address()
+    console.log({ port, env: env.NODE_ENV }, `HTTP server listening on :${port}`)
 })
 
-const shutdown = (signal: string) => {
-    logger.info({ signal }, 'shutting down')
+const shutdown = (signal) => {
+    console.log({ signal }, 'shutting down')
     io.close(() => {
         server.close(() => {
-            logger.info('closed')
+            console.log('closed')
             process.exit(0)
         })
     })
@@ -65,5 +70,3 @@ const shutdown = (signal: string) => {
 
 process.on('SIGINT', () => shutdown('SIGINT'))
 process.on('SIGTERM', () => shutdown('SIGTERM'))
-
-

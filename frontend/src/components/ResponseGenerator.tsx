@@ -165,15 +165,29 @@ export default function ResponseGenerator({
     };
 
     const submitTypedQuestion = async () => {
-        const merged = `${liveBufferRef.current} ${typedQuestion}`.replace(/\s+/g, ' ').trim();
-        const trimmed = merged;
-        if (!trimmed) return;
+        // If user has manually edited the textarea (typed something different from live buffer),
+        // prioritize their edits. Otherwise, use the merged buffer + typed content.
+        let finalText = '';
+        const trimmedTyped = typedQuestion.trim();
+        const trimmedBuffer = liveBufferRef.current.trim();
+
+        if (trimmedTyped && trimmedTyped !== trimmedBuffer) {
+            // User has manually edited - use only their edited text
+            finalText = trimmedTyped;
+        } else {
+            // Use merged buffer + typed content (original behavior)
+            const merged = `${trimmedBuffer} ${trimmedTyped}`.replace(/\s+/g, ' ').trim();
+            finalText = merged;
+        }
+
+        if (!finalText) return;
+
         // Clear immediately for user feedback
         setTypedQuestion('');
         liveBufferRef.current = '';
         justClearedAtRef.current = Date.now();
         // Notify parent (which sets question upstream)
-        try { onManualQuestionSubmit?.(trimmed) } catch { }
+        try { onManualQuestionSubmit?.(finalText) } catch { }
     };
 
     // keep for API parity; not used in this variant
